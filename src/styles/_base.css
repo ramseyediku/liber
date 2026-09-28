@@ -2,7 +2,7 @@
 
 :root {
   /* colors */
-  --clr-light: hsl(210, 40%, 98%);
+  --clr-light: hsl(210, 100%, 99%);
   --clr-white: hsl(0, 0%, 100%);
   --clr-dark: hsl(222, 47%, 11%);
   --clr-grey: rgba(31, 31, 31, 0.08);
@@ -19,6 +19,10 @@
   --clr-interviewing: hsl(38, 92%, 50%);
 
   --border-radius: 0.95rem;
+
+  --box-shadow:
+    rgba(60, 64, 67, 0.3) 0px 1px 2px 0px,
+    rgba(60, 64, 67, 0.15) 0px 1px 3px 1px;
 }
 
 body {
@@ -84,9 +88,7 @@ button {
   width: 3rem;
   font-size: 3rem;
   aspect-ratio: 1/1.25;
-  box-shadow:
-    rgba(60, 64, 67, 0.3) 0px 1px 2px 0px,
-    rgba(60, 64, 67, 0.15) 0px 1px 3px 1px;
+  box-shadow: var(--box-shadow);
   display: grid;
   place-content: center;
   border-radius: var(--border-radius);

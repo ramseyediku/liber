@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "description": "Automatically capture and track job applications as you apply across the web.",
   "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
+    "16": "src/assets/icons/icon16.png",
+    "48": "src/assets/icons/icon48.png",
+    "128": "src/assets/icons/icon128.png"
   },
   "permissions": ["storage", "activeTab", "scripting", "notifications"],
   "host_permissions": ["<all_urls>"],
@@ -18,9 +18,9 @@
   "action": {
     "default_popup": "src/dashboard/dashboard.html",
     "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
+      "16": "src/assets/icons/icon16.png",
+      "48": "src/assets/icons/icon48.png",
+      "128": "src/assets/icons/icon128.png"
     }
   },
   "content_scripts": [

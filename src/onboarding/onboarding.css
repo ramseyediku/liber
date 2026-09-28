@@ -3,6 +3,7 @@
 body {
   display: grid;
   justify-content: center;
+  background: var(--clr-light);
 }
 
 .onboarding {

@@ -3,6 +3,7 @@
 // user to confirm saving, writes confirmed jobs to storage, and opens onboarding
 // on first install.
 
+import "../../vendor/browser-polyfill.js";
 import { addJob, isOnboarded } from "../shared/storage.js";
 
 // Keep the most recent scrape per tab so we can act on it after the user
@@ -29,7 +30,7 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
     // before a richer in-page confirm UI is built.
     await browser.notifications.create(`liber-confirm-${tabId}`, {
       type: "basic",
-      iconUrl: browser.runtime.getURL("icons/icon128.png"),
+      iconUrl: browser.runtime.getURL("src/assets/icons/icon128.png"),
       title: "Save this job application?",
       message: `${message.payload.jobTitle} at ${message.payload.company || "unknown company"}`,
       buttons: [{ title: "Save to Liber" }, { title: "Dismiss" }],

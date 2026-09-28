@@ -4,13 +4,14 @@
   display: grid;
   grid-template-columns: 20% 80%;
   min-height: 100vh;
+  background: var(--clr-light);
 
   .dashboard__aside {
     padding: 1.5rem 1rem;
     background: var(--clr-white);
-    border: 1px solid var(--clr-muted);
-    margin: 0.25em;
-    border-radius: calc(var(--border-radius) / 4);
+    margin: 1em;
+    border: 1px solid var(--clr-grey-dark);
+    border-radius: var(--border-radius);
     color: var(--clr-dark);
   }
 
@@ -69,8 +70,8 @@
     padding-bottom: 1rem;
 
     & h1 {
-      margin: 0;
-      font-size: 3rem;
+      margin: 0 0 0.75rem;
+      font-size: 2.5rem;
     }
   }
 
@@ -81,7 +82,7 @@
     background: var(--clr-white);
     border-radius: var(--border-radius);
     overflow: hidden;
-    box-shadow: 0 1px 3px var(--clr-muted);
+    border: 1px solid var(--clr-grey-dark);
 
     & th,
     & td {
