@@ -1,0 +1,101 @@
+@import "./_reset.css";
+
+:root {
+  /* colors */
+  --clr-light: hsl(210, 40%, 98%);
+  --clr-white: hsl(0, 0%, 100%);
+  --clr-dark: hsl(222, 47%, 11%);
+  --clr-grey: rgba(31, 31, 31, 0.08);
+  --clr-grey-dark: rgba(31, 31, 31, 0.2);
+
+  --clr-accent: hsl(221, 83%, 53%);
+  --clr-accent-hover: hsl(224, 76%, 42.5%);
+  --clr-accent-light: hsl(221, 83%, 63%);
+
+  /* job status colors */
+  --clr-applied: hsl(217, 91%, 60%);
+  --clr-rejected: hsl(0, 84%, 60%);
+  --clr-ghosted: hsl(218, 11%, 65%);
+  --clr-interviewing: hsl(38, 92%, 50%);
+
+  --border-radius: 0.95rem;
+}
+
+body {
+  background-color: var(light);
+  font-size: 1.1rem;
+  line-height: var(--body-line-height);
+  font-family: var(--body-font-family);
+}
+
+:where(h1, h2, h3, h4) {
+  text-wrap: balance;
+  line-height: var(--heading-line-height);
+  font-family: var(--heading-font-family);
+}
+
+input {
+  width: 100%;
+  padding: 1.15rem 1rem;
+  border: 0;
+  border-radius: var(--border-radius);
+  background: var(--clr-grey);
+  color: var(--clr-dark);
+  outline: solid 2px transparent;
+  transition:
+    background-color 350ms ease-in-out,
+    scale 350ms ease-in-out;
+
+  &:focus,
+  &:hover,
+  &:active {
+    scale: 1.01;
+    background-color: var(--clr-grey-dark);
+    transition:
+      background-color 350ms ease-in-out,
+      scale 350ms ease-in-out;
+  }
+}
+
+button {
+  width: 100%;
+  padding: 1rem;
+  border: none;
+  border-radius: calc(var(--border-radius) * 2);
+  background: var(--clr-accent);
+  color: var(--clr-light);
+  font-weight: 600;
+  cursor: pointer;
+  text-box-trim: trim-both cap alphabetic;
+  transition: all 350ms ease-in-out;
+
+  &:hover,
+  &:focus,
+  &:active {
+    transform: scale(1.01);
+    background: var(--clr-accent-hover);
+    transition: all 350ms ease-in-out;
+  }
+}
+
+.logo {
+  position: absolute;
+  background: var(--clr-accent);
+  width: 3rem;
+  font-size: 3rem;
+  aspect-ratio: 1/1.25;
+  box-shadow:
+    rgba(60, 64, 67, 0.3) 0px 1px 2px 0px,
+    rgba(60, 64, 67, 0.15) 0px 1px 3px 1px;
+  display: grid;
+  place-content: center;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  letter-spacing: 0.1rem;
+  top: 1.5rem;
+  left: 1.5rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--clr-white);
+  font-family: var(--heading-font-family);
+}

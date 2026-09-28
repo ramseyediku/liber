@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Welcome to Liber</title>
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="../assets/favicon/favicon-16x16.png" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="../assets/favicon/favicon-32x32.png" />
+    <link
+      rel="apple-touch-icon"
+      href="../assets/favicon/apple-touch-icon.png" />
+    <link rel="stylesheet" href="onboarding.css" />
+  </head>
+  <body>
+    <main class="onboarding">
+      <div class="logo">L</div>
+
+      <h1>Welcome to Liber</h1>
+      <p>Job tracking made simple.</p>
+
+      <form id="onboarding-form" method="post">
+        <label for="name">Your name</label>
+        <input type="text" name="name" placeholder="Alex Morgan" required />
+
+        <label for="profession">What profession are you applying for?</label>
+        <input
+          type="text"
+          name="profession"
+          placeholder="Software Engineer"
+          required />
+
+        <button type="submit">Get started</button>
+      </form>
+
+      <p id="confirmation" class="hidden">
+        You're all set. You can close this tab and start applying.
+      </p>
+    </main>
+
+    <script type="module" src="onboarding.js"></script>
+  </body>
+</html>
