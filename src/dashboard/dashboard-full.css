@@ -1,0 +1,107 @@
+@import "../styles/_base.css";
+@import "./dashboard-shared.css";
+
+/*
+ * This is the full-page view, opened in its own tab via the popup's
+ * "Full view" button. Unlike the popup (dashboard.css) it has room for a
+ * sidebar and every table column.
+ */
+body {
+  background: var(--clr-light);
+}
+
+.dashboard {
+  display: grid;
+  grid-template-columns: 20% 80%;
+  min-height: 100vh;
+  background: var(--clr-light);
+}
+
+.dashboard__aside {
+  padding: 1.5rem 1rem;
+  background: var(--clr-white);
+  margin: 1em;
+  border: 1px solid var(--clr-grey-dark);
+  border-radius: var(--border-radius);
+  color: var(--clr-dark);
+}
+
+.dashboard__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 2rem;
+  color: var(--clr-dark);
+  font-size: 1.25rem;
+  font-weight: 700;
+
+  .logo {
+    position: static;
+    width: 1.75rem;
+    font-size: 1rem;
+  }
+}
+
+.dashboard__nav {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.dashboard__link {
+  display: flex;
+  align-items: center;
+  padding: 0.85rem 0.8rem;
+  border-radius: var(--border-radius);
+  color: var(--clr-dark);
+  font-size: 0.85rem;
+  font-weight: 600;
+
+  svg {
+    width: 1.45rem;
+    aspect-ratio: 1;
+    margin-right: 0.5rem;
+  }
+
+  &:hover,
+  &.dashboard__link--active {
+    background: var(--clr-accent-transparent);
+    color: var(--clr-accent-hover);
+
+    svg {
+      color: var(--clr-accent);
+
+      rect,
+      circle {
+        fill: var(--clr-accent);
+      }
+    }
+  }
+}
+
+.dashboard__main {
+  min-width: 0;
+  padding: 1.5rem;
+}
+
+.dashboard__header {
+  padding-bottom: 1rem;
+
+  & h1 {
+    margin: 0 0 0.75rem;
+    font-size: 2.5rem;
+  }
+}
+
+.dashboard__table .dashboard__col--full {
+  display: table-cell;
+}
+
+@media (max-width: 720px) {
+  .dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard__aside {
+    margin: 1em 1em 0;
+  }
+}

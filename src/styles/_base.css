@@ -11,6 +11,7 @@
   --clr-accent: hsl(221, 83%, 53%);
   --clr-accent-hover: hsl(224, 76%, 42.5%);
   --clr-accent-light: hsl(221, 83%, 63%);
+  --clr-accent-transparent: hsl(221, 83%, 53%, 0.1);
 
   /* job status colors */
   --clr-applied: hsl(217, 91%, 60%);
@@ -26,7 +27,7 @@
 }
 
 body {
-  background-color: var(light);
+  background-color: var(--clr-light);
   font-size: 1.1rem;
   line-height: var(--body-line-height);
   font-family: var(--body-font-family);

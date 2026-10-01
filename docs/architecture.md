@@ -39,14 +39,25 @@ The single source of truth for reading/writing extension data. Wraps
 - `STATUS` / `STATUS_META` — the status enum (`applied`, `interviewing`,
   `rejected`, `ghosted`) and their display label/color.
 
-### `src/dashboard/` — Toolbar popup
+### `src/dashboard/` — Toolbar popup and full view
 
-`dashboard.html` is registered as `action.default_popup`, so it opens when
-the user clicks the extension's toolbar icon. `dashboard.js` renders a table
-of all jobs (`getAllJobs`), with an editable status `<select>` and an
-editable notes cell per row, a delete button, and a greeting built from the
-saved profile. It re-renders automatically on `browser.storage.onChanged`
-so it stays in sync if a job is saved while the popup is open.
+Two separate pages share the same table-rendering logic
+(`dashboard-core.js`):
+
+- `dashboard.html` / `dashboard.js` / `dashboard.css` — the compact popup,
+  registered as `action.default_popup`. No sidebar; only the columns that
+  matter at a glance (company, title, status, notes).
+- `dashboard-full.html` / `dashboard-full.js` / `dashboard-full.css` — a
+  full-page view with the sidebar and every column, opened in a new tab via
+  the popup's "Full view" button (`browser.tabs.create`).
+
+`dashboard-core.js`'s `initDashboard()` renders the jobs table
+(`getAllJobs`) — a status `<select>` colored per status, a notes button that
+opens a small popover to edit notes, a delete button, and a greeting built
+from the saved profile — and re-renders automatically on
+`browser.storage.onChanged` so either page stays in sync if a job is saved
+elsewhere. `dashboard-shared.css` holds the table/select/notes-popover
+styles common to both pages.
 
 ### `src/onboarding/` — First-run setup
 

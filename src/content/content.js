@@ -54,21 +54,115 @@
     return "";
   }
 
+  function getMetaContent(name) {
+    const el = document.querySelector(
+      `meta[property="${name}"], meta[name="${name}"]`,
+    );
+    return el?.content?.trim() || "";
+  }
+
+  // Most ATS platforms (Greenhouse, Lever, Workday, company career pages,
+  // etc.) embed schema.org JobPosting structured data for SEO. It's far more
+  // reliable than guessing at CSS classes, so it's the primary source for any
+  // site without hand-tuned PLATFORM_SELECTORS.
+  function getJobPostingLd() {
+    const scripts = document.querySelectorAll(
+      'script[type="application/ld+json"]',
+    );
+
+    const postings = [];
+    for (const script of scripts) {
+      let parsed;
+      try {
+        parsed = JSON.parse(script.textContent);
+      } catch {
+        continue;
+      }
+
+      const candidates = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed?.["@graph"])
+          ? parsed["@graph"]
+          : [parsed];
+
+      for (const candidate of candidates) {
+        const type = candidate?.["@type"];
+        const isJobPosting = Array.isArray(type)
+          ? type.includes("JobPosting")
+          : type === "JobPosting";
+        if (isJobPosting) postings.push(candidate);
+      }
+    }
+
+    return postings[0] || null;
+  }
+
+  function orgName(hiringOrganization) {
+    if (!hiringOrganization) return "";
+    if (typeof hiringOrganization === "string") return hiringOrganization;
+    return hiringOrganization.name || "";
+  }
+
+  function locationFromLd(jobLocation) {
+    const place = Array.isArray(jobLocation) ? jobLocation[0] : jobLocation;
+    const address = place?.address;
+    if (!address) return "";
+    if (typeof address === "string") return address;
+    return [address.addressLocality, address.addressRegion, address.addressCountry]
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  // Job board/ATS <title> tags are usually "Job Title - Company" or
+  // "Job Title | Site Name"; take the first segment rather than the raw tab
+  // title so we don't save the whole "job advert link" text as the title.
+  function cleanDocumentTitle() {
+    return document.title.split(/\s+[|\-–—]\s+/)[0].trim();
+  }
+
   function scrapeJobDetails() {
     const platformKey = getPlatformKey();
-    const selectors =
-      PLATFORM_SELECTORS[platformKey] || PLATFORM_SELECTORS.default;
+    // Only trust the hand-tuned selectors for platforms we actually have
+    // selectors for. For everything else, structured data and meta tags are
+    // more reliable than the crude `default` class-name guesses, so those
+    // guesses are tried last rather than first.
+    const specific = PLATFORM_SELECTORS[platformKey];
+    const generic = PLATFORM_SELECTORS.default;
+    const jobPosting = getJobPostingLd();
+
+    const jobTitle =
+      (specific && queryFirstText(specific.jobTitle)) ||
+      jobPosting?.title ||
+      getMetaContent("og:title") ||
+      queryFirstText(generic.jobTitle) ||
+      cleanDocumentTitle();
+
+    const company =
+      (specific && queryFirstText(specific.company)) ||
+      orgName(jobPosting?.hiringOrganization) ||
+      getMetaContent("og:site_name") ||
+      queryFirstText(generic.company) ||
+      "";
+
+    const location =
+      (specific && queryFirstText(specific.location)) ||
+      locationFromLd(jobPosting?.jobLocation) ||
+      queryFirstText(generic.location) ||
+      "";
 
     return {
       url: window.location.href,
       platform:
         platformKey === "default" ? window.location.hostname : platformKey,
-      jobTitle: queryFirstText(selectors.jobTitle) || document.title,
-      company: queryFirstText(selectors.company) || "",
-      location: queryFirstText(selectors.location) || "",
+      jobTitle,
+      company,
+      location,
       jobDescription: (
-        document.querySelector('[class*="description"]')?.textContent || ""
+        jobPosting?.description ||
+        document.querySelector('[class*="description"]')?.textContent ||
+        ""
       )
+        .replace(/<[^>]+>/g, " ")
         .trim()
         .slice(0, 2000),
     };

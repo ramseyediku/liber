@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Liber Dashboard</title>
+    <link rel="icon" href="../assets/favicon/favicon.ico" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="../assets/favicon/favicon-32x32.png" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="../assets/favicon/favicon-16x16.png" />
+    <link rel="manifest" href="../assets/favicon/site.webmanifest" />
+    <link
+      rel="apple-touch-icon"
+      href="../assets/favicon/apple-touch-icon.png" />
+    <link rel="stylesheet" href="dashboard-full.css" />
+  </head>
+  <body>
+    <div class="dashboard">
+      <aside class="dashboard__aside" aria-label="Primary navigation">
+        <a class="dashboard__brand" href="dashboard-full.html">
+          <span class="logo">L</span>
+          Liber
+        </a>
+        <nav class="dashboard__nav">
+          <a
+            class="dashboard__link dashboard__link--active"
+            href="dashboard-full.html"
+            aria-current="page">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="lucide lucide-layout-dashboard preview-icon">
+              <rect width="7" height="9" x="3" y="3" rx="1" />
+              <rect width="7" height="5" x="14" y="3" rx="1" />
+              <rect width="7" height="9" x="14" y="12" rx="1" />
+              <rect width="7" height="5" x="3" y="16" rx="1" />
+            </svg>
+            Applications
+          </a>
+        </nav>
+      </aside>
+
+      <main class="dashboard__main">
+        <header class="dashboard__header">
+          <h1>My Applications</h1>
+          <p class="dashboard__greeting" id="greeting"></p>
+        </header>
+
+        <div class="dashboard__table-wrap">
+          <table class="dashboard__table" id="jobs-table">
+            <thead>
+              <tr>
+                <th>Company</th>
+                <th>Job title</th>
+                <th class="dashboard__col--full">Platform</th>
+                <th class="dashboard__col--full">Location</th>
+                <th class="dashboard__col--full">Date added</th>
+                <th>Status</th>
+                <th>Notes</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="jobs-tbody">
+              <!-- rows injected by dashboard-full.js -->
+            </tbody>
+          </table>
+        </div>
+      </main>
+    </div>
+
+    <script src="../../vendor/browser-polyfill.js"></script>
+    <script type="module" src="dashboard-full.js"></script>
+  </body>
+</html>

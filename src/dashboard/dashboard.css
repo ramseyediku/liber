@@ -1,167 +1,106 @@
 @import "../styles/_base.css";
+@import "./dashboard-shared.css";
+
+/*
+ * This is the toolbar popup — a fixed-size window with no room for a
+ * sidebar or every column, so layout here stays compact and the table only
+ * shows the columns that matter at a glance. The full set of columns and
+ * the sidebar live in dashboard-full.html/dashboard-full.css instead.
+ */
+body {
+  width: 23rem;
+  max-height: 30rem;
+  overflow-y: auto;
+  background: var(--clr-light);
+}
 
 .dashboard {
-  display: grid;
-  grid-template-columns: 20% 80%;
-  min-height: 100vh;
-  background: var(--clr-light);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 0.85rem;
+}
 
-  .dashboard__aside {
-    padding: 1.5rem 1rem;
-    background: var(--clr-white);
-    margin: 1em;
-    border: 1px solid var(--clr-grey-dark);
-    border-radius: var(--border-radius);
-    color: var(--clr-dark);
+.dashboard__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.dashboard__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+
+  .logo {
+    position: static;
+    width: 2.1rem;
+    aspect-ratio: 1;
+    font-size: 1rem;
   }
+}
 
-  .dashboard__brand {
-    display: block;
-    margin-bottom: 2rem;
-    color: var(--clr-dark);
-    font-size: 1.25rem;
-    font-weight: 700;
+.dashboard__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--clr-dark);
+}
+
+.dashboard__expand {
+  flex: none;
+  width: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.75rem;
+  background: var(--clr-white);
+  color: var(--clr-dark);
+  border: 1px solid var(--clr-grey-dark);
+
+  &:hover,
+  &:focus {
+    background: var(--clr-accent-transparent);
+    color: var(--clr-accent-hover);
+    transform: none;
   }
+}
 
-  .dashboard__nav {
-    display: grid;
-    gap: 0.5rem;
+.dashboard__table {
+  font-size: 0.78rem;
+
+  & th,
+  & td {
+    padding: 0.5rem 0.55rem;
   }
+}
 
-  .dashboard__link {
-    display: block;
-    padding: 0.85rem 0.8rem;
-    border-radius: var(--border-radius);
-    color: var(--clr-dark);
-    font-size: 0.85rem;
-    font-weight: 600;
+.dashboard__col--company,
+.dashboard__col--title {
+  max-width: 6rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-    display: flex;
-    align-items: center;
+.dashboard__col--title a {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-    img {
-      width: 1.45rem;
-      aspect-ratio: 1;
-      margin-right: 0.5rem;
-    }
+.dashboard__notes-btn {
+  max-width: 6rem;
+}
 
-    &:hover,
-    .dashboard__link--active {
-      background: var(--clr-accent-transparent);
-      color: var(--clr-accent-hover);
+.dashboard__select {
+  font-size: 0.72rem;
+  padding: 0.25rem 0.4rem;
+}
 
-      svg {
-        color: var(--clr-accent);
-
-        rect,
-        circle {
-          fill: var(--clr-accent);
-        }
-      }
-    }
-  }
-
-  .dashboard__main {
-    min-width: 0;
-    padding: 1.5rem;
-  }
-
-  .dashboard__header {
-    padding-bottom: 1rem;
-
-    & h1 {
-      margin: 0 0 0.75rem;
-      font-size: 2.5rem;
-    }
-  }
-
-  .dashboard__table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.85rem;
-    background: var(--clr-white);
-    border-radius: var(--border-radius);
-    overflow: hidden;
-    border: 1px solid var(--clr-grey-dark);
-
-    & th,
-    & td {
-      text-align: left;
-      padding: 0.6rem 0.75rem;
-      border-bottom: 1px solid var(--clr-white);
-    }
-
-    & th {
-      background: var(--clr-white);
-      font-weight: 600;
-      color: var(--clr-dark);
-    }
-
-    & td[contenteditable="true"] {
-      cursor: text;
-
-      &:focus {
-        outline: 2px solid var(--clr-accent);
-        background: var(--clr-white);
-      }
-    }
-  }
-
-  .dashboard__select {
-    padding: 0.3rem 0.5rem;
-    border-radius: 6px;
-    border: none;
-    font-weight: 600;
-    color: white;
-
-    &--applied {
-      background-color: #3b82f6;
-    }
-
-    &--rejected {
-      background-color: #ef4444;
-    }
-
-    &--ghosted {
-      background-color: #9ca3af;
-    }
-
-    &--interviewing {
-      background-color: #f59e0b;
-    }
-  }
-
-  .dashboard__delete {
-    background: none;
-    border: none;
-    color: var(--clr-dark);
-    cursor: pointer;
-    font-size: 0.9rem;
-    opacity: 0.5;
-
-    &:hover {
-      color: var(--clr-accent-hover);
-      opacity: 1;
-    }
-  }
-
-  .dashboard__greeting,
-  .dashboard__empty {
-    color: var(--clr-dark);
-    opacity: 0.65;
-  }
-
-  .dashboard__greeting {
-    margin: 0.25rem 0 0;
-    font-size: 0.85rem;
-  }
-
-  .dashboard__empty {
-    margin-top: 3rem;
-    text-align: center;
-
-    &--hidden {
-      display: none;
-    }
-  }
+.dashboard__delete {
+  font-size: 0.72rem;
 }

@@ -1,0 +1,199 @@
+/*
+ * Styles shared by the popup (dashboard.css) and full-view (dashboard-full.css)
+ * pages: the jobs table, the status select, and the notes button/popover.
+ * Page-specific layout (sidebar, header sizing, body dimensions) lives in
+ * each page's own stylesheet, imported after this one.
+ */
+
+.dashboard__table-wrap {
+  overflow-x: auto;
+  border-radius: var(--border-radius);
+}
+
+.dashboard__table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.85rem;
+  background: var(--clr-white);
+  border-radius: var(--border-radius);
+  border: 1px solid var(--clr-grey-dark);
+
+  & th,
+  & td {
+    text-align: left;
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--clr-grey);
+    white-space: nowrap;
+  }
+
+  & tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  & tbody tr:hover td {
+    background: var(--clr-light);
+  }
+
+  & th {
+    background: var(--clr-white);
+    font-weight: 600;
+    color: var(--clr-dark);
+  }
+
+  & .dashboard__col--full {
+    display: none;
+  }
+
+  & td.dashboard__empty {
+    text-align: center;
+    padding: 3rem 0.75rem;
+    border-bottom: none;
+    white-space: normal;
+  }
+}
+
+.dashboard__select {
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  border: none;
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--clr-white);
+  cursor: pointer;
+
+  &--applied {
+    background-color: var(--clr-applied);
+  }
+
+  &--rejected {
+    background-color: var(--clr-rejected);
+  }
+
+  &--ghosted {
+    background-color: var(--clr-ghosted);
+    color: var(--clr-dark);
+  }
+
+  &--interviewing {
+    background-color: var(--clr-interviewing);
+  }
+}
+
+.dashboard__delete {
+  width: auto;
+  background: none;
+  border: none;
+  color: var(--clr-dark);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.3rem 0.5rem;
+  opacity: 0.5;
+
+  &:hover,
+  &:focus {
+    color: var(--clr-accent-hover);
+    opacity: 1;
+    background: none;
+    transform: none;
+  }
+}
+
+.dashboard__greeting,
+.dashboard__empty {
+  color: var(--clr-dark);
+  opacity: 0.65;
+}
+
+.dashboard__greeting {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+}
+
+/* Notes: a button per row that opens a small popover (below), rather than
+   editing inline in the table cell. */
+.dashboard__notes-btn {
+  width: auto;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-align: left;
+  background: var(--clr-grey);
+  color: var(--clr-dark);
+
+  &:hover,
+  &:focus {
+    background: var(--clr-accent-transparent);
+    color: var(--clr-accent-hover);
+    transform: none;
+  }
+}
+
+.dashboard__notes-btn--empty {
+  color: var(--clr-dark);
+  opacity: 0.5;
+  font-style: italic;
+}
+
+/* Appended to <body> (not .dashboard) so it can be positioned in the
+   viewport regardless of where the anchor row sits. */
+.dashboard__notes-popover {
+  position: fixed;
+  z-index: 100;
+  width: 15rem;
+  padding: 0.75rem;
+  background: var(--clr-white);
+  border: 1px solid var(--clr-grey-dark);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  transform-origin: top left;
+  animation: notes-popover-pop 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  textarea {
+    width: 100%;
+    min-height: 5rem;
+    padding: 0.5rem;
+    border: 0;
+    border-radius: calc(var(--border-radius) / 2);
+    background: var(--clr-grey);
+    color: var(--clr-dark);
+    font-family: inherit;
+    font-size: 0.85rem;
+    resize: vertical;
+
+    &:focus {
+      outline: 2px solid var(--clr-accent);
+    }
+  }
+}
+
+.dashboard__notes-popover-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+
+  button {
+    width: auto;
+    padding: 0.4rem 0.9rem;
+    font-size: 0.8rem;
+  }
+}
+
+/* A spring-like "pop" rather than a plain fade/slide: overshoots slightly
+   past full size before settling, anchored from the corner nearest the
+   button that opened it (set inline via transformOrigin in dashboard-core.js). */
+@keyframes notes-popover-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(-0.2rem);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}

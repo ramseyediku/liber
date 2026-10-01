@@ -7,6 +7,7 @@ import { getProfile, setProfile } from "../shared/storage.js";
 
 const form = document.getElementById("onboarding-form");
 const confirmation = document.getElementById("confirmation");
+const slogan = document.querySelector("p");
 
 async function prefillIfOnboarded() {
   const profile = await getProfile();
@@ -25,6 +26,7 @@ form.addEventListener("submit", async (event) => {
   await setProfile({ name, profession });
 
   form.classList.add("hidden");
+  slogan.classList.add("hidden");
   confirmation.classList.remove("hidden");
 });
 
