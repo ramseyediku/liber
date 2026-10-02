@@ -17,7 +17,7 @@
   font-size: 0.85rem;
   background: var(--clr-white);
   border-radius: var(--border-radius);
-  border: 1px solid var(--clr-grey-dark);
+  /* border: 1px solid var(--clr-grey-dark); */
 
   & th,
   & td {
@@ -36,9 +36,23 @@
   }
 
   & th {
+    position: relative;
     background: var(--clr-white);
     font-weight: 600;
+    font-size: 1.08em;
     color: var(--clr-dark);
+
+    /* A subtle separator between headings — inset from the row's own top
+       and bottom edges so it doesn't read as a hard column divider. */
+    &:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      top: 30%;
+      bottom: 30%;
+      right: 0;
+      width: 1px;
+      background: var(--clr-grey-dark);
+    }
   }
 
   & .dashboard__col--full {
@@ -53,51 +67,96 @@
   }
 }
 
+/* appearance: none + a hand-drawn arrow, rather than relying on
+   background-color alone, because Firefox and Safari both paint their own
+   chrome (incl. a default white strip) around a <select> unless its native
+   appearance is reset first — without this the status color doesn't
+   reliably fill the whole control outside Chromium. */
 .dashboard__select {
-  padding: 0.3rem 0.5rem;
-  border-radius: 6px;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding: 0.35rem 1.65rem 0.35rem 0.75rem;
+  border-radius: 999px;
   border: none;
   font-weight: 600;
   font-size: 0.8rem;
   color: var(--clr-white);
   cursor: pointer;
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+  background-size: 0.6rem;
 
   &--applied {
     background-color: var(--clr-applied);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath fill='none' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
   }
 
   &--rejected {
     background-color: var(--clr-rejected);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath fill='none' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
   }
 
   &--ghosted {
     background-color: var(--clr-ghosted);
     color: var(--clr-dark);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath fill='none' stroke='%23111827' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
   }
 
   &--interviewing {
     background-color: var(--clr-interviewing);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath fill='none' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
   }
 }
 
 .dashboard__delete {
-  width: auto;
+  width: 2rem;
+  aspect-ratio: 1;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
   background: none;
   border: none;
   color: var(--clr-dark);
   cursor: pointer;
-  font-size: 0.8rem;
-  font-weight: 600;
-  padding: 0.3rem 0.5rem;
   opacity: 0.5;
+
+  svg {
+    width: 1.05rem;
+    aspect-ratio: 1;
+  }
 
   &:hover,
   &:focus {
-    color: var(--clr-accent-hover);
+    color: var(--clr-rejected);
     opacity: 1;
-    background: none;
-    transform: none;
+    background: var(--clr-rejected-transparent);
+    transform: scale(1.01);
   }
+}
+
+/* Top-right cluster: theme toggle + user avatar. Shared by the popup header
+   and the full-view page header. */
+.dashboard__header-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Colored circle with the user's initial, Google-account-avatar style. */
+.dashboard__avatar {
+  width: 2.65rem;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--clr-accent);
+  color: var(--clr-white);
+  font-family: var(--heading-font-family);
+  font-size: 1.05rem;
+  font-weight: 700;
 }
 
 .dashboard__greeting,
@@ -145,7 +204,7 @@
 .dashboard__notes-popover {
   position: fixed;
   z-index: 100;
-  width: 15rem;
+  width: 20rem;
   padding: 0.75rem;
   background: var(--clr-white);
   border: 1px solid var(--clr-grey-dark);
@@ -156,15 +215,25 @@
 
   textarea {
     width: 100%;
-    min-height: 5rem;
-    padding: 0.5rem;
-    border: 0;
+    min-height: 8rem;
+    padding: 0.6rem;
+    /* Same surface as the popover itself (not --clr-grey) — a border does
+       the work of setting it apart instead of a different fill color. */
+    background: var(--clr-white);
+    border: 1px solid var(--clr-grey-dark);
     border-radius: calc(var(--border-radius) / 2);
-    background: var(--clr-grey);
     color: var(--clr-dark);
     font-family: inherit;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     resize: vertical;
+    /* A bigger, accent-colored blinking caret, so it reads clearly as "you
+       can type here" against the now-matching background. */
+    caret-color: var(--clr-accent);
+
+    &::placeholder {
+      color: var(--clr-dark);
+      opacity: 0.45;
+    }
 
     &:focus {
       outline: 2px solid var(--clr-accent);
@@ -174,7 +243,7 @@
 
 .dashboard__notes-popover-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   margin-top: 0.5rem;
 
   button {

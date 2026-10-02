@@ -152,8 +152,6 @@
 
     return {
       url: window.location.href,
-      platform:
-        platformKey === "default" ? window.location.hostname : platformKey,
       jobTitle,
       company,
       location,

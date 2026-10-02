@@ -12,18 +12,21 @@ body {
 
 .dashboard {
   display: grid;
-  grid-template-columns: 20% 80%;
+  grid-template-columns: 20rem 1fr 5rem;
   min-height: 100vh;
   background: var(--clr-light);
 }
 
+/* No card/border — just a flat panel in its own shade (--clr-sidebar),
+   slightly apart from the main canvas, like Google's AI Mode sidebar. */
 .dashboard__aside {
+  display: flex;
+  flex-direction: column;
   padding: 1.5rem 1rem;
-  background: var(--clr-white);
-  margin: 1em;
-  border: 1px solid var(--clr-grey-dark);
-  border-radius: var(--border-radius);
+  background: var(--clr-sidebar);
   color: var(--clr-dark);
+  margin: 0.45em;
+  border-radius: var(--border-radius);
 }
 
 .dashboard__brand {
@@ -78,6 +81,12 @@ body {
   }
 }
 
+/* Pinned to the bottom of the sidebar, under the nav links — a plain
+   placeholder for now, same look as the other nav links. */
+.dashboard__link--settings {
+  margin-top: auto;
+}
+
 .dashboard__main {
   min-width: 0;
   padding: 1.5rem;
@@ -92,8 +101,32 @@ body {
   }
 }
 
+/* Third column: the theme toggle and avatar get their own rail rather than
+   sitting inside the header, so they stay put regardless of header/table
+   content height. */
+.dashboard__rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem 0.75rem;
+}
+
 .dashboard__table .dashboard__col--full {
   display: table-cell;
+}
+
+@media (max-width: 960px) {
+  .dashboard {
+    grid-template-columns: 20rem 1fr;
+  }
+
+  .dashboard__rail {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    justify-content: flex-end;
+    padding: 0 1.5rem 1rem;
+  }
 }
 
 @media (max-width: 720px) {
@@ -102,6 +135,20 @@ body {
   }
 
   .dashboard__aside {
-    margin: 1em 1em 0;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .dashboard__nav {
+    flex: 1;
+  }
+
+  .dashboard__link--settings {
+    margin-top: 0;
+  }
+
+  .dashboard__rail {
+    grid-column: 1;
   }
 }

@@ -4,14 +4,23 @@
 // (sidebar, header) and CSS differ — so this module is the single place
 // that builds rows, handles the notes popover, and re-renders on storage
 // changes.
-import { getAllJobs, updateJob, deleteJob, getProfile, STATUS_META } from "../shared/storage.js";
+import {
+  getAllJobs,
+  updateJob,
+  deleteJob,
+  getProfile,
+  STATUS_META,
+} from "../shared/storage.js";
 
 const EMPTY_MESSAGE =
   'No applications tracked yet. Click "Apply" on any job listing to get started.';
-const COLUMN_COUNT = 8;
+const COLUMN_COUNT = 7;
+// src/assets/icons/trash.svg, inlined so its stroke can pick up currentColor.
+const TRASH_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>`;
 
 let tbody;
 let greeting;
+let avatar;
 let activePopover = null;
 // A storage change (e.g. our own notes edit, or a job saved from another
 // tab) normally triggers a full re-render — but re-rendering while the
@@ -22,7 +31,9 @@ let rerenderPending = false;
 async function renderGreeting() {
   const profile = await getProfile();
   if (profile) {
-    greeting.textContent = `${profile.name} — tracking ${profile.profession} roles`;
+    greeting.textContent = `Tracking ${profile.profession} roles`;
+    if (avatar)
+      avatar.textContent = profile.name.trim().charAt(0).toUpperCase();
   }
 }
 
@@ -104,7 +115,8 @@ function openNotesPopover(job, anchorBtn) {
   popover.style.top = `${anchorRect.bottom + 6}px`;
   // Pop the popover in from whichever side sits nearest the button that
   // opened it, so the animation reads as coming out of the button.
-  popover.style.transformOrigin = left < anchorRect.left ? "top right" : "top left";
+  popover.style.transformOrigin =
+    left < anchorRect.left ? "top right" : "top left";
 
   textarea.addEventListener("input", async () => {
     job.notes = textarea.value;
@@ -143,18 +155,9 @@ function buildRow(job) {
 
   const titleTd = document.createElement("td");
   titleTd.className = "dashboard__col--title";
-  const link = document.createElement("a");
-  link.href = job.url;
-  link.target = "_blank";
-  link.textContent = job.jobTitle;
-  link.title = job.jobTitle;
-  titleTd.appendChild(link);
+  titleTd.textContent = job.jobTitle;
+  titleTd.title = job.jobTitle;
   tr.appendChild(titleTd);
-
-  const platformTd = document.createElement("td");
-  platformTd.className = "dashboard__col--full";
-  platformTd.textContent = job.platform;
-  tr.appendChild(platformTd);
 
   const locationTd = document.createElement("td");
   locationTd.className = "dashboard__col--full";
@@ -176,7 +179,8 @@ function buildRow(job) {
   const deleteBtn = document.createElement("button");
   deleteBtn.type = "button";
   deleteBtn.className = "dashboard__delete";
-  deleteBtn.textContent = "Delete";
+  deleteBtn.setAttribute("aria-label", "Delete");
+  deleteBtn.innerHTML = TRASH_ICON;
   deleteBtn.addEventListener("click", async () => {
     await deleteJob(job.id);
     tr.remove();
@@ -213,6 +217,7 @@ async function renderJobs() {
 export function initDashboard() {
   tbody = document.getElementById("jobs-tbody");
   greeting = document.getElementById("greeting");
+  avatar = document.getElementById("user-avatar");
 
   renderGreeting();
   renderJobs();

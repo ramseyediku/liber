@@ -49,15 +49,28 @@ Two separate pages share the same table-rendering logic
   matter at a glance (company, title, status, notes).
 - `dashboard-full.html` / `dashboard-full.js` / `dashboard-full.css` — a
   full-page view with the sidebar and every column, opened in a new tab via
-  the popup's "Full view" button (`browser.tabs.create`).
+  the popup's "Full view" button (`browser.tabs.create`). The sidebar also
+  has a "Settings" link that isn't wired up yet (see
+  [roadmap.md](roadmap.md)).
 
 `dashboard-core.js`'s `initDashboard()` renders the jobs table
 (`getAllJobs`) — a status `<select>` colored per status, a notes button that
 opens a small popover to edit notes, a delete button, and a greeting built
-from the saved profile — and re-renders automatically on
-`browser.storage.onChanged` so either page stays in sync if a job is saved
-elsewhere. `dashboard-shared.css` holds the table/select/notes-popover
-styles common to both pages.
+from the saved profile (with the user's initial shown in an avatar badge) —
+and re-renders automatically on `browser.storage.onChanged` so either page
+stays in sync if a job is saved elsewhere. `dashboard-shared.css` holds the
+table/select/notes-popover styles common to both pages.
+
+### `src/shared/theme.js` — Dark/light mode
+
+A plain script (not an ES module) loaded via a blocking `<script src>` in
+the `<head>` of all three pages (dashboard popup, full view, onboarding),
+so it runs before first paint and seeds the `--theme-icon` custom property
+from the saved preference (`liber_theme` in `localStorage`) or the OS
+setting before anything renders. `window.LiberTheme.initToggle(button)`
+wires a toggle button's click handler and keeps its accessible label in
+sync; the actual color and icon swap is pure CSS, driven by `--theme-icon`
+via a `@container style(...)` query in `_base.css`.
 
 ### `src/onboarding/` — First-run setup
 
@@ -96,7 +109,6 @@ dashboard.js (storage.onChanged listener) → re-render table
   company: string,
   jobTitle: string,
   jobDescription: string,
-  platform: string,
   url: string,
   dateAdded: string,   // ISO timestamp
   status: "applied" | "interviewing" | "rejected" | "ghosted",

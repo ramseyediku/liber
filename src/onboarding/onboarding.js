@@ -3,7 +3,11 @@
 // profession via the shared storage module and swaps in the confirmation
 // message.
 
+// theme.js (loaded as a plain <script> in <head>, not a module — see that
+// file for why) exposes its toggle wiring as window.LiberTheme.
 import { getProfile, setProfile } from "../shared/storage.js";
+
+LiberTheme.initToggle(document.getElementById("theme-toggle"));
 
 const form = document.getElementById("onboarding-form");
 const confirmation = document.getElementById("confirmation");

@@ -6,6 +6,12 @@ body {
   background: var(--clr-light);
 }
 
+.onboarding__theme-toggle {
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+}
+
 .onboarding {
   margin-top: 7.5rem;
   width: min(100%, 700px);

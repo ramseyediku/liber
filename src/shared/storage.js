@@ -37,7 +37,6 @@ export async function addJob(partialJob) {
     company: partialJob.company || "Unknown company",
     jobTitle: partialJob.jobTitle || "Unknown title",
     jobDescription: partialJob.jobDescription || "",
-    platform: partialJob.platform || "Unknown",
     url: partialJob.url || "",
     dateAdded: new Date().toISOString(),
     status: STATUS.APPLIED,

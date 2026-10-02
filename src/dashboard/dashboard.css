@@ -48,6 +48,14 @@ body {
   color: var(--clr-dark);
 }
 
+.dashboard__theme-toggle {
+  width: 2.1rem;
+
+  svg {
+    width: 1.05rem;
+  }
+}
+
 .dashboard__expand {
   flex: none;
   width: auto;
@@ -80,13 +88,6 @@ body {
 .dashboard__col--company,
 .dashboard__col--title {
   max-width: 6rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.dashboard__col--title a {
-  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -1,36 +1,120 @@
 @import "./_reset.css";
 
 :root {
-  /* colors */
-  --clr-light: hsl(210, 100%, 99%);
-  --clr-white: hsl(0, 0%, 100%);
-  --clr-dark: hsl(222, 47%, 11%);
-  --clr-grey: rgba(31, 31, 31, 0.08);
-  --clr-grey-dark: rgba(31, 31, 31, 0.2);
+  /* Theme switch. src/shared/theme.js flips this between a quoted sun and
+     moon glyph (both at boot, pre-paint, and from the toggle button); the
+     style query below reacts to it, re-pointing every --clr-* alias at the
+     dark palette and swapping which icon the toggle shows — a single
+     source of truth for "which mode are we in". */
+  --theme-icon: "☀️";
+  color-scheme: light dark;
 
-  --clr-accent: hsl(221, 83%, 53%);
-  --clr-accent-hover: hsl(224, 76%, 42.5%);
-  --clr-accent-light: hsl(221, 83%, 63%);
-  --clr-accent-transparent: hsl(221, 83%, 53%, 0.1);
+  /* light palette. --theme-light-bg is the plain page canvas; surface/
+     sidebar are the "foreground" panels (table, sidebar) and are
+     deliberately a visible step darker, not just 1% off the canvas, so the
+     separation reads clearly instead of relying on text contrast alone. */
+  --theme-light-bg: hsl(0, 0%, 100%);
+  --theme-light-surface: hsl(220, 16%, 93%);
+  --theme-light-sidebar: hsl(220, 16%, 93%);
+  --theme-light-text: hsl(222, 47%, 11%);
+  --theme-light-grey: rgba(31, 31, 31, 0.08);
+  --theme-light-grey-dark: rgba(31, 31, 31, 0.2);
+  --theme-light-accent: hsl(221, 83%, 53%);
+  --theme-light-accent-hover: hsl(224, 76%, 42.5%);
+  --theme-light-accent-light: hsl(221, 83%, 63%);
+  --theme-light-accent-transparent: hsl(221, 83%, 53%, 0.1);
+  --theme-light-shadow:
+    rgba(60, 64, 67, 0.3) 0px 1px 2px 0px,
+    rgba(60, 64, 67, 0.15) 0px 1px 3px 1px;
 
-  /* job status colors */
+  /* dark palette, matched to Google's AI Mode dark surface */
+  --theme-dark-bg: #22242a;
+  --theme-dark-surface: #2c2e35;
+  --theme-dark-sidebar: #272930;
+  --theme-dark-text: hsl(0, 0%, 89%);
+  --theme-dark-grey: rgba(255, 255, 255, 0.07);
+  --theme-dark-grey-dark: rgba(255, 255, 255, 0.16);
+  --theme-dark-accent: hsl(217, 89%, 82%);
+  --theme-dark-accent-hover: hsl(213, 97%, 91%);
+  --theme-dark-accent-light: hsl(217, 89%, 72%);
+  --theme-dark-accent-transparent: hsla(217, 89%, 82%, 0.12);
+  --theme-dark-shadow:
+    rgba(0, 0, 0, 0.5) 0px 1px 2px 0px,
+    rgba(0, 0, 0, 0.3) 0px 1px 3px 1px;
+
+  /* active colors — every component reads these, never the palettes
+     above directly. Default to light; flipped to dark by the style query
+     below. */
+  --clr-light: var(--theme-light-bg);
+  --clr-white: var(--theme-light-surface);
+  --clr-sidebar: var(--theme-light-sidebar);
+  --clr-dark: var(--theme-light-text);
+  --clr-grey: var(--theme-light-grey);
+  --clr-grey-dark: var(--theme-light-grey-dark);
+
+  --clr-accent: var(--theme-light-accent);
+  --clr-accent-hover: var(--theme-light-accent-hover);
+  --clr-accent-light: var(--theme-light-accent-light);
+  --clr-accent-transparent: var(--theme-light-accent-transparent);
+
+  /* job status colors (not themed — they're already vivid enough to read
+     on both backgrounds) */
   --clr-applied: hsl(217, 91%, 60%);
   --clr-rejected: hsl(0, 84%, 60%);
+  --clr-rejected-transparent: hsla(0, 84%, 60%, 0.12);
   --clr-ghosted: hsl(218, 11%, 65%);
   --clr-interviewing: hsl(38, 92%, 50%);
 
   --border-radius: 0.95rem;
 
-  --box-shadow:
-    rgba(60, 64, 67, 0.3) 0px 1px 2px 0px,
-    rgba(60, 64, 67, 0.15) 0px 1px 3px 1px;
+  --box-shadow: var(--theme-light-shadow);
+}
+
+/* Style queries read inherited custom properties from an ancestor
+   container — :root itself has no ancestor, so this targets `body`
+   (a descendant of :root) and lets the --clr-* aliases inherit down from
+   there into everything else. No container-type is needed: unlike size
+   queries, style queries work on any element by default. */
+@container style(--theme-icon: "🌙") {
+  body {
+    color-scheme: dark;
+
+    --clr-light: var(--theme-dark-bg);
+    --clr-white: var(--theme-dark-surface);
+    --clr-sidebar: var(--theme-dark-sidebar);
+    --clr-dark: var(--theme-dark-text);
+    --clr-grey: var(--theme-dark-grey);
+    --clr-grey-dark: var(--theme-dark-grey-dark);
+
+    --clr-accent: var(--theme-dark-accent);
+    --clr-accent-hover: var(--theme-dark-accent-hover);
+    --clr-accent-light: var(--theme-dark-accent-light);
+    --clr-accent-transparent: var(--theme-dark-accent-transparent);
+
+    --box-shadow: var(--theme-dark-shadow);
+
+    /* swap which glyph the toggle button shows along with everything else */
+    .dashboard__theme-toggle {
+      .theme-icon-sun {
+        display: none;
+      }
+
+      .theme-icon-moon {
+        display: block;
+      }
+    }
+  }
 }
 
 body {
   background-color: var(--clr-light);
+  color: var(--clr-dark);
   font-size: 1.1rem;
   line-height: var(--body-line-height);
   font-family: var(--body-font-family);
+  transition:
+    background-color 200ms ease-in-out,
+    color 200ms ease-in-out;
 }
 
 :where(h1, h2, h3, h4) {
@@ -80,6 +164,37 @@ button {
     transform: scale(1.01);
     background: var(--clr-accent-hover);
     transition: all 350ms ease-in-out;
+  }
+}
+
+/* Dark/light toggle, icon-only. Shared by all three pages (dashboard popup,
+   full view, onboarding) since they each import _base.css directly. Holds
+   both the sun and moon icons (src/assets/icons/sun.svg, moon.svg) at once;
+   the style query above shows whichever one matches --theme-icon, so the
+   swap happens in CSS, in step with every other color on the page. */
+.dashboard__theme-toggle {
+  width: 2.65rem;
+  aspect-ratio: 1;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: var(--clr-grey);
+  color: var(--clr-dark);
+  border-radius: 50%;
+
+  svg {
+    width: 1.3rem;
+    aspect-ratio: 1;
+  }
+
+  .theme-icon-moon {
+    display: none;
+  }
+
+  &:hover,
+  &:focus {
+    background: var(--clr-accent-transparent);
+    transform: scale(1.01);
   }
 }
 
