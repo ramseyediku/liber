@@ -30,6 +30,12 @@
       "run_at": "document_idle"
     }
   ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/assets/notif.mp3"],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "options_page": "src/onboarding/onboarding.html",
   "browser_specific_settings": {
     "gecko": {

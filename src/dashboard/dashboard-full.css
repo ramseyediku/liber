@@ -1,154 +1,256 @@
 @import "../styles/_base.css";
 @import "./dashboard-shared.css";
 
-/*
- * This is the full-page view, opened in its own tab via the popup's
- * "Full view" button. Unlike the popup (dashboard.css) it has room for a
- * sidebar and every table column.
- */
-body {
-  background: var(--clr-light);
-}
-
 .dashboard {
   display: grid;
-  grid-template-columns: 20rem 1fr 5rem;
+  grid-template-columns: 22rem 1fr 8rem;
   min-height: 100vh;
   background: var(--clr-light);
-}
+  transition: grid-template-columns 280ms ease;
 
-/* No card/border — just a flat panel in its own shade (--clr-sidebar),
-   slightly apart from the main canvas, like Google's AI Mode sidebar. */
-.dashboard__aside {
-  display: flex;
-  flex-direction: column;
-  padding: 1.5rem 1rem;
-  background: var(--clr-sidebar);
-  color: var(--clr-dark);
-  margin: 0.45em;
-  border-radius: var(--border-radius);
-}
-
-.dashboard__brand {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 2rem;
-  color: var(--clr-dark);
-  font-size: 1.25rem;
-  font-weight: 700;
-
-  .logo {
-    position: static;
-    width: 1.75rem;
-    font-size: 1rem;
-  }
-}
-
-.dashboard__nav {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.dashboard__link {
-  display: flex;
-  align-items: center;
-  padding: 0.85rem 0.8rem;
-  border-radius: var(--border-radius);
-  color: var(--clr-dark);
-  font-size: 0.85rem;
-  font-weight: 600;
-
-  svg {
-    width: 1.45rem;
-    aspect-ratio: 1;
-    margin-right: 0.5rem;
+  /* Set on load only, so restoring a previously-collapsed sidebar snaps
+     straight to its final width instead of replaying the transition. This is a hacky trick to avoid a flash of the full-width sidebar on load. */
+  &.dashboard--no-transition {
+    transition: none;
   }
 
-  &:hover,
-  &.dashboard__link--active {
-    background: var(--clr-accent-transparent);
-    color: var(--clr-accent-hover);
+  &.is-sidebar-collapsed {
+    grid-template-columns: 5.5rem 1fr 8rem;
+  }
 
-    svg {
-      color: var(--clr-accent);
+  @media (max-width: 960px) {
+    grid-template-columns: 20rem 1fr;
 
-      rect,
-      circle {
-        fill: var(--clr-accent);
-      }
+    &.is-sidebar-collapsed {
+      grid-template-columns: 5.5rem 1fr;
     }
   }
-}
 
-/* Pinned to the bottom of the sidebar, under the nav links — a plain
-   placeholder for now, same look as the other nav links. */
-.dashboard__link--settings {
-  margin-top: auto;
-}
-
-.dashboard__main {
-  min-width: 0;
-  padding: 1.5rem;
-}
-
-.dashboard__header {
-  padding-bottom: 1rem;
-
-  & h1 {
-    margin: 0 0 0.75rem;
-    font-size: 2.5rem;
-  }
-}
-
-/* Third column: the theme toggle and avatar get their own rail rather than
-   sitting inside the header, so they stay put regardless of header/table
-   content height. */
-.dashboard__rail {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 1.5rem 0.75rem;
-}
-
-.dashboard__table .dashboard__col--full {
-  display: table-cell;
-}
-
-@media (max-width: 960px) {
-  .dashboard {
-    grid-template-columns: 20rem 1fr;
-  }
-
-  .dashboard__rail {
-    grid-column: 1 / -1;
-    flex-direction: row;
-    justify-content: flex-end;
-    padding: 0 1.5rem 1rem;
-  }
-}
-
-@media (max-width: 720px) {
-  .dashboard {
+  @media (max-width: 720px) {
     grid-template-columns: 1fr;
   }
 
   .dashboard__aside {
-    flex-direction: row;
-    align-items: center;
-    flex-wrap: wrap;
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-7) var(--space-5);
+    background: var(--clr-sidebar);
+    color: var(--clr-dark);
+    overflow: hidden;
+
+    @media (max-width: 720px) {
+      flex-direction: row;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .dashboard__brand {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-8);
+
+      /* brand logo */
+      .dashboard__brand-link {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        min-width: 0;
+        color: var(--clr-dark);
+        font-size: var(--space-5);
+        font-weight: 900;
+
+        .logo {
+          position: static;
+          width: var(--space-9);
+          min-width: 49.5px;
+          aspect-ratio: 1;
+        }
+
+        .dashboard.is-sidebar-collapsed & {
+          justify-content: center;
+          gap: 0;
+        }
+      }
+
+      /* collapse icon */
+      .dashboard__sidebar-toggle {
+        padding: var(--space-2);
+        align-self: center;
+        border-radius: var(--border-radius);
+        width: 2.5rem;
+        aspect-ratio: 1;
+        padding: 0;
+        display: grid;
+        place-items: center;
+        background: none;
+        color: var(--clr-dark);
+        border-radius: var(--border-radius);
+        cursor: pointer;
+        padding: var(--space-3) var(--space-1);
+
+        transition:
+          background-color 200ms ease-in-out,
+          color 200ms ease-in-out;
+
+        svg {
+          display: block;
+          width: var(--space-5);
+          aspect-ratio: 1;
+        }
+
+        .sidebar-toggle-icon-expand {
+          display: none;
+        }
+
+        &:hover,
+        &:focus {
+          background: var(--clr-accent-transparent);
+          color: var(--clr-accent-hover);
+        }
+
+        .dashboard.is-sidebar-collapsed & {
+          align-self: center;
+          width: var(--space-10);
+
+          .sidebar-toggle-icon-collapse {
+            display: none;
+          }
+
+          .sidebar-toggle-icon-expand {
+            display: block;
+          }
+        }
+      }
+
+      /* Collapsed: only the logo, the toggle, and nav icons remain */
+      .dashboard.is-sidebar-collapsed & {
+        flex-direction: column;
+        gap: var(--space-8);
+        padding: var(--space-3) var(--space-1);
+        margin-bottom: var(--space-1);
+      }
+    }
+
+    /* Collapsible text next to an icon — shrinks to nothing instead of just
+     disappearing, so it stays in step with the sidebar's own width transition.
+     Shared by the brand link and nav links. */
+    .dashboard__label {
+      display: inline-block;
+      margin: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      opacity: 1;
+      transition:
+        max-width 280ms ease,
+        opacity 160ms ease;
+
+      .dashboard.is-sidebar-collapsed & {
+        max-width: 0;
+        opacity: 0;
+      }
+    }
+
+    .dashboard__link {
+      display: flex;
+      align-items: center;
+      padding: var(--space-3) var(--space-1);
+      border-radius: var(--border-radius);
+      color: var(--clr-dark);
+      font-weight: 500;
+
+      svg {
+        flex: none;
+        width: var(--space-12);
+        aspect-ratio: 1;
+
+        .dashboard.is-sidebar-collapsed & {
+          margin-right: 0;
+        }
+      }
+
+      &:hover,
+      &.dashboard__link--active {
+        background: var(--clr-accent-transparent);
+        color: var(--clr-accent-hover);
+
+        svg {
+          color: var(--clr-accent);
+
+          rect,
+          circle {
+            fill: var(--clr-accent);
+          }
+        }
+      }
+
+      &.dashboard__link--settings {
+        @media (max-width: 720px) {
+          margin-top: 0;
+        }
+      }
+    }
+
+    .dashboard__nav {
+      @media (max-width: 720px) {
+        flex: 1;
+      }
+    }
   }
 
-  .dashboard__nav {
-    flex: 1;
+  .dashboard__main {
+    min-width: 0;
+    padding: var(--space-6);
+
+    .dashboard__header {
+      padding-bottom: var(--space-4);
+
+      h1 {
+        margin: 0 0 var(--space-3);
+        font-size: 2.5rem;
+      }
+    }
+
+    .dashboard__table-wrap {
+      .dashboard__table {
+        .dashboard__col--full {
+          display: table-cell;
+        }
+      }
+    }
   }
 
-  .dashboard__link--settings {
-    margin-top: 0;
-  }
-
+  /* Third column: theme toggle + avatar, stay put regardless of header/table height. */
   .dashboard__rail {
-    grid-column: 1;
+    display: flex;
+    flex-direction: row;
+    justify-content: start;
+    align-items: start;
+    gap: var(--space-2);
+    padding: var(--space-6) var(--space-3);
+
+    .dashboard__theme-toggle {
+      width: 3.1rem;
+
+      svg {
+        width: var(--space-5);
+      }
+    }
+
+    .dashboard__avatar {
+      width: 3.1rem;
+      font-size: 1.1rem;
+    }
+
+    @media (max-width: 960px) {
+      grid-column: 1 / -1;
+      flex-direction: row;
+      justify-content: flex-end;
+      padding: 0 var(--space-6) var(--space-4);
+    }
+
+    @media (max-width: 720px) {
+      grid-column: 1;
+    }
   }
 }

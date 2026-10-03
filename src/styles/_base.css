@@ -1,21 +1,16 @@
 @import "./_reset.css";
 
 :root {
-  /* Theme switch. src/shared/theme.js flips this between a quoted sun and
-     moon glyph (both at boot, pre-paint, and from the toggle button); the
-     style query below reacts to it, re-pointing every --clr-* alias at the
-     dark palette and swapping which icon the toggle shows — a single
-     source of truth for "which mode are we in". */
+  /* theme.js flips this between a sun/moon glyph; the style query below
+     reacts to it and re-points every --clr-* alias. */
   --theme-icon: "☀️";
   color-scheme: light dark;
 
-  /* light palette. --theme-light-bg is the plain page canvas; surface/
-     sidebar are the "foreground" panels (table, sidebar) and are
-     deliberately a visible step darker, not just 1% off the canvas, so the
-     separation reads clearly instead of relying on text contrast alone. */
-  --theme-light-bg: hsl(0, 0%, 100%);
-  --theme-light-surface: hsl(220, 16%, 93%);
-  --theme-light-sidebar: hsl(220, 16%, 93%);
+  /* --theme-light-bg is the page canvas; surface/sidebar are the
+     foreground panels, a step lighter than the canvas. */
+  --theme-light-bg: hsl(220, 16%, 96%);
+  --theme-light-surface: hsl(0, 0%, 100%);
+  --theme-light-sidebar: hsl(0, 0%, 100%);
   --theme-light-text: hsl(222, 47%, 11%);
   --theme-light-grey: rgba(31, 31, 31, 0.08);
   --theme-light-grey-dark: rgba(31, 31, 31, 0.2);
@@ -27,10 +22,10 @@
     rgba(60, 64, 67, 0.3) 0px 1px 2px 0px,
     rgba(60, 64, 67, 0.15) 0px 1px 3px 1px;
 
-  /* dark palette, matched to Google's AI Mode dark surface */
+  /* Sidebar shares --theme-dark-surface, same as the light palette above. */
   --theme-dark-bg: #22242a;
   --theme-dark-surface: #2c2e35;
-  --theme-dark-sidebar: #272930;
+  --theme-dark-sidebar: #2c2e35;
   --theme-dark-text: hsl(0, 0%, 89%);
   --theme-dark-grey: rgba(255, 255, 255, 0.07);
   --theme-dark-grey-dark: rgba(255, 255, 255, 0.16);
@@ -39,12 +34,9 @@
   --theme-dark-accent-light: hsl(217, 89%, 72%);
   --theme-dark-accent-transparent: hsla(217, 89%, 82%, 0.12);
   --theme-dark-shadow:
-    rgba(0, 0, 0, 0.5) 0px 1px 2px 0px,
-    rgba(0, 0, 0, 0.3) 0px 1px 3px 1px;
+    rgba(0, 0, 0, 0.5) 0px 1px 2px 0px, rgba(0, 0, 0, 0.3) 0px 1px 3px 1px;
 
-  /* active colors — every component reads these, never the palettes
-     above directly. Default to light; flipped to dark by the style query
-     below. */
+  /* Active colors — components read these, not the palettes directly. */
   --clr-light: var(--theme-light-bg);
   --clr-white: var(--theme-light-surface);
   --clr-sidebar: var(--theme-light-sidebar);
@@ -57,24 +49,35 @@
   --clr-accent-light: var(--theme-light-accent-light);
   --clr-accent-transparent: var(--theme-light-accent-transparent);
 
-  /* job status colors (not themed — they're already vivid enough to read
-     on both backgrounds) */
-  --clr-applied: hsl(217, 91%, 60%);
-  --clr-rejected: hsl(0, 84%, 60%);
-  --clr-rejected-transparent: hsla(0, 84%, 60%, 0.12);
-  --clr-ghosted: hsl(218, 11%, 65%);
-  --clr-interviewing: hsl(38, 92%, 50%);
+  /* Job status colors  */
+  --clr-applied: hsla(217, 91%, 75%, 0.55);
+  --clr-applied-text: hsl(217, 91%, 30%);
+  --clr-rejected: hsla(0, 84%, 75%, 0.55);
+  --clr-rejected-text: hsl(0, 84%, 32%);
+  --clr-rejected-transparent: hsla(0, 84%, 75%, 0.08);
+  --clr-ghosted: hsla(218, 11%, 80%, 0.55);
+  --clr-interviewing: hsla(38, 92%, 70%, 0.55);
+  --clr-interviewing-text: hsl(38, 92%, 30%);
 
   --border-radius: 0.95rem;
 
   --box-shadow: var(--theme-light-shadow);
+
+  --space-1: 0.25em;
+  --space-2: 0.5em;
+  --space-3: 0.75em;
+  --space-4: 1em;
+  --space-5: 1.25em;
+  --space-6: 1.5em;
+  --space-7: 1.75em;
+  --space-8: 2em;
+  --space-9: 2.25em;
+  --space-10: 2.5em;
+  --space-11: 2.75em;
+  --space-12: 3em;
 }
 
-/* Style queries read inherited custom properties from an ancestor
-   container — :root itself has no ancestor, so this targets `body`
-   (a descendant of :root) and lets the --clr-* aliases inherit down from
-   there into everything else. No container-type is needed: unlike size
-   queries, style queries work on any element by default. */
+/* :root has no ancestor to query, so this targets `body` instead. */
 @container style(--theme-icon: "🌙") {
   body {
     color-scheme: dark;
@@ -93,7 +96,6 @@
 
     --box-shadow: var(--theme-dark-shadow);
 
-    /* swap which glyph the toggle button shows along with everything else */
     .dashboard__theme-toggle {
       .theme-icon-sun {
         display: none;
@@ -125,7 +127,7 @@ body {
 
 input {
   width: 100%;
-  padding: 1.15rem 1rem;
+  padding: var(--space-5) var(--space-4);
   border: 0;
   border-radius: var(--border-radius);
   background: var(--clr-grey);
@@ -138,7 +140,7 @@ input {
   &:focus,
   &:hover,
   &:active {
-    scale: 1.01;
+    scale: 1.005;
     background-color: var(--clr-grey-dark);
     transition:
       background-color 350ms ease-in-out,
@@ -148,7 +150,7 @@ input {
 
 button {
   width: 100%;
-  padding: 1rem;
+  padding: var(--space-4);
   border: none;
   border-radius: calc(var(--border-radius) * 2);
   background: var(--clr-accent);
@@ -161,19 +163,16 @@ button {
   &:hover,
   &:focus,
   &:active {
-    transform: scale(1.01);
+    transform: scale(1.005);
     background: var(--clr-accent-hover);
     transition: all 350ms ease-in-out;
   }
 }
 
-/* Dark/light toggle, icon-only. Shared by all three pages (dashboard popup,
-   full view, onboarding) since they each import _base.css directly. Holds
-   both the sun and moon icons (src/assets/icons/sun.svg, moon.svg) at once;
-   the style query above shows whichever one matches --theme-icon, so the
-   swap happens in CSS, in step with every other color on the page. */
+/* Holds both the sun and moon icons; the style query above shows
+   whichever matches --theme-icon. */
 .dashboard__theme-toggle {
-  width: 2.65rem;
+  width: 2.9rem;
   aspect-ratio: 1;
   padding: 0;
   display: grid;
@@ -183,8 +182,10 @@ button {
   border-radius: 50%;
 
   svg {
-    width: 1.3rem;
+    display: block;
+    width: 1.4rem;
     aspect-ratio: 1;
+    margin: 0 auto;
   }
 
   .theme-icon-moon {
@@ -194,26 +195,16 @@ button {
   &:hover,
   &:focus {
     background: var(--clr-accent-transparent);
-    transform: scale(1.01);
+    transform: scale(1.005);
   }
 }
 
 .logo {
   position: absolute;
-  background: var(--clr-accent);
+  display: block;
   width: 3rem;
-  font-size: 3rem;
-  aspect-ratio: 1/1.25;
-  box-shadow: var(--box-shadow);
-  display: grid;
-  place-content: center;
-  border-radius: var(--border-radius);
+  aspect-ratio: 1;
+  top: var(--space-6);
+  left: var(--space-6);
   cursor: pointer;
-  letter-spacing: 0.1rem;
-  top: 1.5rem;
-  left: 1.5rem;
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--clr-white);
-  font-family: var(--heading-font-family);
 }

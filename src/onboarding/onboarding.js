@@ -1,10 +1,4 @@
-// src/onboarding/onboarding.js
-// Handles the first-run (and settings-page) profile form: saves name +
-// profession via the shared storage module and swaps in the confirmation
-// message.
-
-// theme.js (loaded as a plain <script> in <head>, not a module — see that
-// file for why) exposes its toggle wiring as window.LiberTheme.
+// First-run profile form: saves name + profession, then shows the confirmation message.
 import { getProfile, setProfile } from "../shared/storage.js";
 
 LiberTheme.initToggle(document.getElementById("theme-toggle"));

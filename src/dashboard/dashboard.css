@@ -1,12 +1,8 @@
 @import "../styles/_base.css";
 @import "./dashboard-shared.css";
 
-/*
- * This is the toolbar popup — a fixed-size window with no room for a
- * sidebar or every column, so layout here stays compact and the table only
- * shows the columns that matter at a glance. The full set of columns and
- * the sidebar live in dashboard-full.html/dashboard-full.css instead.
- */
+/* Fixed-size popup — compact layout, only the columns that matter at a
+   glance. Full columns/sidebar live in dashboard-full.css. */
 body {
   width: 23rem;
   max-height: 30rem;
@@ -17,27 +13,25 @@ body {
 .dashboard {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
-  padding: 0.85rem;
+  gap: var(--space-3);
+  padding: var(--space-3);
 }
 
 .dashboard__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .dashboard__brand {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
+  gap: var(--space-3);
 
   .logo {
     position: static;
     width: 2.1rem;
-    aspect-ratio: 1;
-    font-size: 1rem;
   }
 }
 
@@ -49,10 +43,10 @@ body {
 }
 
 .dashboard__theme-toggle {
-  width: 2.1rem;
+  width: 2.3rem;
 
   svg {
-    width: 1.05rem;
+    width: 1.15rem;
   }
 }
 
@@ -61,8 +55,8 @@ body {
   width: auto;
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.4rem 0.7rem;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
   font-size: 0.75rem;
   background: var(--clr-white);
   color: var(--clr-dark);
@@ -81,16 +75,15 @@ body {
 
   & th,
   & td {
-    padding: 0.5rem 0.55rem;
+    padding: var(--space-2) var(--space-2);
   }
 }
 
-.dashboard__col--company,
-.dashboard__col--title {
+/* :not() keeps this out of the way once a cell expands — otherwise its
+   extra specificity would re-clamp the expanded overlay back to 6rem. */
+.dashboard__col--company .dashboard__cell-content:not(.dashboard__cell-content--expanded),
+.dashboard__col--title .dashboard__cell-content:not(.dashboard__cell-content--expanded) {
   max-width: 6rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .dashboard__notes-btn {
@@ -99,7 +92,7 @@ body {
 
 .dashboard__select {
   font-size: 0.72rem;
-  padding: 0.25rem 0.4rem;
+  padding: var(--space-1) var(--space-2);
 }
 
 .dashboard__delete {

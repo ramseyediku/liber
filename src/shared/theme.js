@@ -1,17 +1,9 @@
-// src/shared/theme.js
-// Dark/light mode, in one file. This is deliberately a plain script, not an
-// ES module: loaded as a blocking <script src> in each page's <head>, it
-// runs immediately — before the stylesheet paints anything — which is what
-// seeds --theme-icon early enough to avoid a flash of the wrong theme. (An
-// inline <script> would run just as early, but Manifest V3's default CSP
-// for extension pages blocks inline script execution; an external module
-// script is deferred until after parsing, which is too late.) The actual
-// color and sun/moon icon switch is pure CSS, driven by --theme-icon via a
-// container style query — see src/styles/_base.css.
-//
-// Module entry points (dashboard.js, dashboard-full.js, onboarding.js) grab
-// the toggle wiring off `window.LiberTheme` rather than importing it, since
-// this script has already run by the time they do.
+// Plain script (not a module) loaded blocking in <head>, so it seeds
+// --theme-icon before first paint — a module script would run too late,
+// and an inline one is blocked by the extension pages' CSP. The actual
+// color/icon switch is pure CSS, driven by --theme-icon (see _base.css).
+// Entry points grab the toggle wiring off window.LiberTheme instead of
+// importing it, since this script has already run by the time they do.
 (function () {
   const STORAGE_KEY = "liber_theme";
   const ICON = { light: '"☀️"', dark: '"🌙"' };
@@ -28,8 +20,6 @@
     localStorage.setItem(STORAGE_KEY, theme);
   }
 
-  // Seed immediately from the saved preference, falling back to the OS
-  // setting — this is the line that has to run before first paint.
   const stored = localStorage.getItem(STORAGE_KEY);
   const initial =
     stored === "dark" || stored === "light"
@@ -40,9 +30,8 @@
   document.documentElement.style.setProperty("--theme-icon", ICON[initial]);
 
   window.LiberTheme = {
-    // Wires a button to toggle the theme. Its sun/moon icon swap is handled
-    // entirely by the style query in _base.css, so this only needs to keep
-    // the accessible label in sync.
+    // Icon swap is handled by the style query in _base.css; this just
+    // keeps the accessible label in sync.
     initToggle(button) {
       const sync = () => {
         button.setAttribute(

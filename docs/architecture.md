@@ -49,17 +49,20 @@ Two separate pages share the same table-rendering logic
   matter at a glance (company, title, status, notes).
 - `dashboard-full.html` / `dashboard-full.js` / `dashboard-full.css` — a
   full-page view with the sidebar and every column, opened in a new tab via
-  the popup's "Full view" button (`browser.tabs.create`). The sidebar also
-  has a "Settings" link that isn't wired up yet (see
-  [roadmap.md](roadmap.md)).
+  the popup's "Full view" button (`browser.tabs.create`). Its sidebar can
+  collapse to icon-only via a toggle button; the collapsed state is saved to
+  `localStorage` (`liber_sidebar_collapsed`) and restored without replaying
+  the transition on load.
 
 `dashboard-core.js`'s `initDashboard()` renders the jobs table
 (`getAllJobs`) — a status `<select>` colored per status, a notes button that
-opens a small popover to edit notes, a delete button, and a greeting built
-from the saved profile (with the user's initial shown in an avatar badge) —
-and re-renders automatically on `browser.storage.onChanged` so either page
-stays in sync if a job is saved elsewhere. `dashboard-shared.css` holds the
-table/select/notes-popover styles common to both pages.
+opens a small popover to edit notes, truncated company/title/location cells
+that expand in place on click, a delete button, and a greeting built from
+the saved profile (with the user's initial shown in an avatar badge that
+opens a read-only profile popover on click) — and re-renders automatically
+on `browser.storage.onChanged` so either page stays in sync if a job is
+saved elsewhere. `dashboard-shared.css` holds the table/select/popover
+styles common to both pages.
 
 ### `src/shared/theme.js` — Dark/light mode
 
@@ -76,11 +79,8 @@ via a `@container style(...)` query in `_base.css`.
 
 `onboarding.html` is shown once on install (via `background.js`) and is also
 registered as the extension's `options_page`. It collects name and
-profession, intended to be saved via `setProfile`.
-
-> **Known gap:** `onboarding.html` references `onboarding.js`, which does not
-> exist yet — so the form currently has no submit handler and never actually
-> calls `setProfile`. See [roadmap.md](roadmap.md).
+profession, saving them via `setProfile` on submit (`onboarding.js`), and
+prefills the form if a profile already exists.
 
 ## Data flow
 

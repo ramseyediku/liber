@@ -1,6 +1,5 @@
-// src/shared/storage.js
-// Single source of truth for reading/writing Liber's data.
-// Wraps browser.storage.local so the rest of the app never touches raw storage calls directly.
+// Single source of truth for reading/writing Liber's data — wraps
+// browser.storage.local so nothing else touches it directly.
 
 const JOBS_KEY = "liber_jobs";
 const PROFILE_KEY = "liber_profile";

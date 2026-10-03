@@ -1,13 +1,10 @@
-// src/background/background.js
-// Central coordinator: receives scrape events from content scripts, prompts the
-// user to confirm saving, writes confirmed jobs to storage, and opens onboarding
-// on first install.
+// Central coordinator: receives scrape events, prompts for confirmation,
+// saves confirmed jobs, and opens onboarding on first install.
 
 import "../../vendor/browser-polyfill.js";
 import { addJob, isOnboarded } from "../shared/storage.js";
 
-// Keep the most recent scrape per tab so we can act on it after the user
-// responds to the notification/popup confirmation.
+// Most recent scrape per tab, acted on once the user responds to the notification.
 const pendingByTab = new Map();
 
 browser.runtime.onInstalled.addListener(async (details) => {
@@ -25,9 +22,7 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
 
     pendingByTab.set(tabId, message.payload);
 
-    // v1: use the browser notification API to ask for confirmation.
-    // Clicking the notification triggers the save; this keeps things simple
-    // before a richer in-page confirm UI is built.
+    // v1: a browser notification; clicking it triggers the save.
     await browser.notifications.create(`liber-confirm-${tabId}`, {
       type: "basic",
       iconUrl: browser.runtime.getURL("src/assets/icons/icon128.png"),

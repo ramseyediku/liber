@@ -1,11 +1,6 @@
-// src/content/content.js
-// Runs inside every page. Watches for "Apply" / "Submit" clicks on job platforms
-// and scrapes best-guess job details from the DOM, then asks the background
-// script to prompt the user to save it.
-//
-// NOTE: This is a v1 heuristic scraper. Platform-specific selectors (LinkedIn,
-// Indeed, Greenhouse, Lever, etc.) should be added incrementally — see the
-// PLATFORM_SELECTORS map below for where to extend this.
+// Watches every page for "Apply"/"Submit" clicks, scrapes job details from
+// the DOM, and asks the background script to prompt the user to save it.
+// v1 heuristic scraper — extend PLATFORM_SELECTORS for more sites.
 
 (function () {
   const APPLY_KEYWORDS = [
@@ -30,7 +25,6 @@
       company: '[data-testid="inlineHeader-companyName"]',
       location: '[data-testid="inlineHeader-companyLocation"]',
     },
-    // Add more platforms here as you extend Liber.
     default: {
       jobTitle: "h1",
       company: '[class*="company"], [class*="employer"]',
@@ -61,10 +55,8 @@
     return el?.content?.trim() || "";
   }
 
-  // Most ATS platforms (Greenhouse, Lever, Workday, company career pages,
-  // etc.) embed schema.org JobPosting structured data for SEO. It's far more
-  // reliable than guessing at CSS classes, so it's the primary source for any
-  // site without hand-tuned PLATFORM_SELECTORS.
+  // Most ATS platforms embed schema.org JobPosting data for SEO — more
+  // reliable than guessing CSS classes, so it's tried before the generic fallback.
   function getJobPostingLd() {
     const scripts = document.querySelectorAll(
       'script[type="application/ld+json"]',
@@ -113,19 +105,16 @@
       .join(", ");
   }
 
-  // Job board/ATS <title> tags are usually "Job Title - Company" or
-  // "Job Title | Site Name"; take the first segment rather than the raw tab
-  // title so we don't save the whole "job advert link" text as the title.
+  // <title> is usually "Job Title - Company" or "Job Title | Site" — take
+  // just the first segment.
   function cleanDocumentTitle() {
     return document.title.split(/\s+[|\-–—]\s+/)[0].trim();
   }
 
   function scrapeJobDetails() {
     const platformKey = getPlatformKey();
-    // Only trust the hand-tuned selectors for platforms we actually have
-    // selectors for. For everything else, structured data and meta tags are
-    // more reliable than the crude `default` class-name guesses, so those
-    // guesses are tried last rather than first.
+    // Structured data and meta tags beat the crude `default` guesses, so
+    // those are tried last.
     const specific = PLATFORM_SELECTORS[platformKey];
     const generic = PLATFORM_SELECTORS.default;
     const jobPosting = getJobPostingLd();
@@ -186,12 +175,18 @@
       const target = event.target.closest("button, a, input[type='submit']");
       if (!target || !isApplyTrigger(target)) return;
 
+      // Plays on the click itself rather than the notification — see
+      // roadmap.md for why.
+      new Audio(browser.runtime.getURL("src/assets/notif.mp3"))
+        .play()
+        .catch(() => {});
+
       const details = scrapeJobDetails();
       browser.runtime.sendMessage({
         type: "JOB_APPLY_DETECTED",
         payload: details,
       });
     },
-    true, // capture phase, so we catch it even if the site stops propagation later
+    true, // capture phase — catches it even if the site stops propagation
   );
 })();

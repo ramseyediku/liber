@@ -24,39 +24,52 @@
   <body>
     <div class="dashboard">
       <aside class="dashboard__aside" aria-label="Primary navigation">
-        <a class="dashboard__brand" href="dashboard-full.html">
-          <span class="logo">L</span>
-          Liber
-        </a>
-        <nav class="dashboard__nav">
-          <a
-            class="dashboard__link dashboard__link--active"
-            href="dashboard-full.html"
-            aria-current="page">
-            <!-- src/assets/icons/job.svg -->
+        <div class="dashboard__brand">
+          <a class="dashboard__brand-link" href="dashboard-full.html">
+            <img class="logo" src="../assets/logo.png" alt="Liber logo" />
+            <span class="dashboard__label">Liber</span>
+          </a>
+
+          <button
+            type="button"
+            class="dashboard__sidebar-toggle"
+            id="sidebar-toggle"
+            aria-label="Collapse sidebar">
+            <!-- src/assets/icons/panel-left.svg -->
             <svg
+              class="sidebar-toggle-icon-collapse"
               xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
               stroke-width="2"
               stroke-linecap="round"
-              stroke-linejoin="round"
-              class="lucide lucide-layout-dashboard preview-icon">
-              <rect width="7" height="9" x="3" y="3" rx="1" />
-              <rect width="7" height="5" x="14" y="3" rx="1" />
-              <rect width="7" height="9" x="14" y="12" rx="1" />
-              <rect width="7" height="5" x="3" y="16" rx="1" />
+              stroke-linejoin="round">
+              <rect width="18" height="18" x="3" y="3" rx="2" />
+              <path d="M9 3v18" />
             </svg>
-            Applications
-          </a>
-        </nav>
-
-        <!-- Not wired up yet. -->
-        <a class="dashboard__link dashboard__link--settings" href="#">
-          <!-- src/assets/icons/settings.svg -->
+            <!-- src/assets/icons/panel-right.svg -->
+            <svg
+              class="sidebar-toggle-icon-expand"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round">
+              <path d="M4 5h16" />
+              <path d="M4 12h16" />
+              <path d="M4 19h16" />
+            </svg>
+          </button>
+        </div>
+        <a
+          class="dashboard__link dashboard__link--active"
+          href="dashboard-full.html"
+          aria-current="page"
+          aria-label="Applications">
+          <!-- src/assets/icons/job.svg -->
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="24"
@@ -67,12 +80,13 @@
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
-            class="lucide lucide-bolt preview-icon">
-            <path
-              d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-            <circle cx="12" cy="12" r="4" />
+            class="lucide lucide-layout-dashboard preview-icon">
+            <rect width="7" height="9" x="3" y="3" rx="1" />
+            <rect width="7" height="5" x="14" y="3" rx="1" />
+            <rect width="7" height="9" x="14" y="12" rx="1" />
+            <rect width="7" height="5" x="3" y="16" rx="1" />
           </svg>
-          Settings
+          <p class="dashboard__label">Dashboard</p>
         </a>
       </aside>
 
@@ -87,9 +101,9 @@
             <thead>
               <tr>
                 <th>Company</th>
-                <th>Job title</th>
+                <th class="dashboard__col--title">Job Title</th>
                 <th class="dashboard__col--full">Location</th>
-                <th class="dashboard__col--full">Date added</th>
+                <th class="dashboard__col--full">Date Added</th>
                 <th>Status</th>
                 <th>Notes</th>
                 <th></th>
@@ -143,9 +157,32 @@
           </svg>
         </button>
 
-        <div class="dashboard__avatar" id="user-avatar" aria-hidden="true"></div>
+        <button
+          type="button"
+          class="dashboard__avatar"
+          id="user-avatar"
+          aria-label="View profile"></button>
       </aside>
     </div>
+
+    <!-- Cloned per-row by dashboard-core.js for each delete button. -->
+    <template id="trash-icon-template">
+      <!-- src/assets/icons/trash.svg -->
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round">
+        <path d="M3 6h18" />
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+        <line x1="10" x2="10" y1="11" y2="17" />
+        <line x1="14" x2="14" y1="11" y2="17" />
+      </svg>
+    </template>
 
     <script src="../../vendor/browser-polyfill.js"></script>
     <script type="module" src="dashboard-full.js"></script>

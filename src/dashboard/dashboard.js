@@ -1,8 +1,4 @@
-// src/dashboard/dashboard.js
-// Entry point for the popup (toolbar) page. The full table/notes-popover
-// logic lives in dashboard-core.js, shared with the full-view page.
-// theme.js (loaded as a plain <script> in <head>, not a module — see that
-// file for why) exposes its toggle wiring as window.LiberTheme.
+// Entry point for the popup page — table logic lives in dashboard-core.js.
 import { initDashboard } from "./dashboard-core.js";
 
 document.getElementById("expand-view").addEventListener("click", () => {

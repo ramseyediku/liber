@@ -1,9 +1,5 @@
-// src/dashboard/dashboard-core.js
-// Shared rendering logic for both dashboard pages (the popup and the full
-// view). Both pages have identical table markup — only their page chrome
-// (sidebar, header) and CSS differ — so this module is the single place
-// that builds rows, handles the notes popover, and re-renders on storage
-// changes.
+// Shared table-rendering logic for both dashboard pages (popup and full
+// view) — their markup is identical, only page chrome/CSS differs.
 import {
   getAllJobs,
   updateJob,
@@ -13,28 +9,68 @@ import {
 } from "../shared/storage.js";
 
 const EMPTY_MESSAGE =
-  'No applications tracked yet. Click "Apply" on any job listing to get started.';
+  'No applications tracked yet. Click "Apply" on any job listing to start.';
 const COLUMN_COUNT = 7;
-// src/assets/icons/trash.svg, inlined so its stroke can pick up currentColor.
-const TRASH_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>`;
 
 let tbody;
 let greeting;
 let avatar;
+let sidebarToggle;
+let trashIconTemplate;
 let activePopover = null;
-// A storage change (e.g. our own notes edit, or a job saved from another
-// tab) normally triggers a full re-render — but re-rendering while the
-// notes popover is open would blow it away out from under the user's
-// cursor. Defer it until the popover closes instead.
+// Defers a storage-triggered re-render until the popover closes, so it
+// doesn't get blown away out from under the user's cursor.
 let rerenderPending = false;
+let profileData = null;
+let expandedCell = null;
+// The button that opened the current popover — mousedown on it must not
+// count as an "outside" click, or the popover closes and immediately
+// reopens before the anchor's own click handler runs.
+let activePopoverAnchor = null;
+
+const SIDEBAR_COLLAPSED_KEY = "liber_sidebar_collapsed";
 
 async function renderGreeting() {
-  const profile = await getProfile();
-  if (profile) {
-    greeting.textContent = `Tracking ${profile.profession} roles`;
+  profileData = await getProfile();
+  if (profileData) {
+    greeting.textContent = `Tracking my applications for: ${profileData.profession}`;
     if (avatar)
-      avatar.textContent = profile.name.trim().charAt(0).toUpperCase();
+      avatar.textContent = profileData.name.trim().charAt(0).toUpperCase();
   }
+}
+
+function openProfilePopover(anchorBtn) {
+  if (activePopover) return closeActivePopover();
+  if (!profileData) return;
+
+  const popover = document.createElement("div");
+  popover.className = "dashboard__popover dashboard__profile-popover";
+
+  const name = document.createElement("p");
+  name.className = "dashboard__profile-popover-name";
+  name.textContent = profileData.name;
+  popover.appendChild(name);
+
+  const profession = document.createElement("p");
+  profession.className = "dashboard__profile-popover-profession";
+  profession.textContent = `Tracking: ${profileData.profession}`;
+  popover.appendChild(profession);
+
+  document.body.appendChild(popover);
+
+  const anchorRect = anchorBtn.getBoundingClientRect();
+  // offsetWidth, unlike getBoundingClientRect(), ignores the entrance
+  // animation's transform: scale(), which would otherwise shrink the
+  // measured width and push the popover off-screen.
+  const left = Math.max(12, anchorRect.right - popover.offsetWidth);
+  popover.style.left = `${left}px`;
+  popover.style.top = `${anchorRect.bottom + 10}px`;
+
+  activePopover = popover;
+  activePopoverAnchor = anchorBtn;
+
+  document.addEventListener("mousedown", handleOutsideClick, true);
+  document.addEventListener("keydown", handlePopoverKeydown, true);
 }
 
 function buildStatusSelect(job) {
@@ -57,11 +93,19 @@ function buildStatusSelect(job) {
   return select;
 }
 
-function closeNotesPopover() {
-  activePopover?.remove();
+function closeActivePopover() {
+  if (!activePopover) return;
+
+  const el = activePopover;
   activePopover = null;
+  activePopoverAnchor = null;
   document.removeEventListener("mousedown", handleOutsideClick, true);
   document.removeEventListener("keydown", handlePopoverKeydown, true);
+
+  // Plays the pop-out animation, then detaches once it finishes instead
+  // of vanishing instantly.
+  el.classList.add("dashboard__popover--closing");
+  el.addEventListener("animationend", () => el.remove(), { once: true });
 
   if (rerenderPending) {
     rerenderPending = false;
@@ -70,24 +114,23 @@ function closeNotesPopover() {
 }
 
 function handleOutsideClick(event) {
-  if (activePopover && !activePopover.contains(event.target)) {
-    closeNotesPopover();
-  }
+  if (!activePopover || activePopover.contains(event.target)) return;
+  // Let the anchor's own click handler (fired right after this mousedown)
+  // decide whether to toggle closed — otherwise it reopens a fresh popover
+  // a beat after this closes it.
+  if (activePopoverAnchor && activePopoverAnchor.contains(event.target)) return;
+  closeActivePopover();
 }
 
 function handlePopoverKeydown(event) {
-  if (event.key === "Escape") closeNotesPopover();
-}
-
-function truncate(text, max) {
-  return text.length > max ? `${text.slice(0, max).trim()}…` : text;
+  if (event.key === "Escape") closeActivePopover();
 }
 
 function openNotesPopover(job, anchorBtn) {
-  if (activePopover) closeNotesPopover();
+  if (activePopover) closeActivePopover();
 
   const popover = document.createElement("div");
-  popover.className = "dashboard__notes-popover";
+  popover.className = "dashboard__popover dashboard__notes-popover";
 
   const textarea = document.createElement("textarea");
   textarea.placeholder = "Add a note…";
@@ -99,37 +142,78 @@ function openNotesPopover(job, anchorBtn) {
   const doneBtn = document.createElement("button");
   doneBtn.type = "button";
   doneBtn.textContent = "Done";
-  doneBtn.addEventListener("click", () => closeNotesPopover());
+  doneBtn.addEventListener("click", () => closeActivePopover());
   actions.appendChild(doneBtn);
   popover.appendChild(actions);
 
   document.body.appendChild(popover);
 
   const anchorRect = anchorBtn.getBoundingClientRect();
-  const popoverRect = popover.getBoundingClientRect();
-  const left = Math.max(
-    12,
-    Math.min(anchorRect.left, window.innerWidth - popoverRect.width - 12),
-  );
+  // offsetWidth, unlike getBoundingClientRect(), ignores the entrance
+  // animation's transform: scale(), which would otherwise shrink the
+  // measured width and push the popover off-screen.
+  // Opens leftward from the button's right edge, since it anchors to the
+  // rightmost table columns.
+  const left = Math.max(12, anchorRect.right - popover.offsetWidth);
   popover.style.left = `${left}px`;
   popover.style.top = `${anchorRect.bottom + 6}px`;
-  // Pop the popover in from whichever side sits nearest the button that
-  // opened it, so the animation reads as coming out of the button.
-  popover.style.transformOrigin =
-    left < anchorRect.left ? "top right" : "top left";
 
   textarea.addEventListener("input", async () => {
     job.notes = textarea.value;
-    anchorBtn.textContent = job.notes ? truncate(job.notes, 24) : "Add note";
+    anchorBtn.textContent = job.notes ? "View my note" : "Add a note";
     anchorBtn.classList.toggle("dashboard__notes-btn--empty", !job.notes);
     await updateJob(job.id, { notes: job.notes.trim() });
   });
 
   textarea.focus();
   activePopover = popover;
+  activePopoverAnchor = anchorBtn;
 
   document.addEventListener("mousedown", handleOutsideClick, true);
   document.addEventListener("keydown", handlePopoverKeydown, true);
+}
+
+function collapseExpandedCell() {
+  if (!expandedCell) return;
+  expandedCell.classList.remove("dashboard__cell-content--expanded");
+  expandedCell = null;
+  document.removeEventListener("mousedown", handleCellOutsideClick, true);
+}
+
+function handleCellOutsideClick(event) {
+  if (expandedCell && !expandedCell.contains(event.target)) {
+    collapseExpandedCell();
+  }
+}
+
+function toggleCellExpand(span) {
+  if (expandedCell === span) {
+    collapseExpandedCell();
+    return;
+  }
+  collapseExpandedCell();
+  span.classList.add("dashboard__cell-content--expanded");
+  expandedCell = span;
+  document.addEventListener("mousedown", handleCellOutsideClick, true);
+}
+
+/* Truncates with an ellipsis; clicking the cell expands it in place,
+   Excel-style, instead of resizing the column. */
+function buildTruncatedCell(text, className) {
+  const td = document.createElement("td");
+  if (className) td.className = className;
+
+  const span = document.createElement("span");
+  span.className = "dashboard__cell-content";
+  span.textContent = text;
+  span.title = text;
+  span.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleCellExpand(span);
+  });
+
+  td.appendChild(span);
+  return td;
 }
 
 function buildNotesCell(job) {
@@ -138,7 +222,7 @@ function buildNotesCell(job) {
   btn.type = "button";
   btn.className = "dashboard__notes-btn";
   if (!job.notes) btn.classList.add("dashboard__notes-btn--empty");
-  btn.textContent = job.notes ? truncate(job.notes, 24) : "Add note";
+  btn.textContent = job.notes ? "View my note" : "Add a note";
   btn.addEventListener("click", () => openNotesPopover(job, btn));
   td.appendChild(btn);
   return td;
@@ -147,22 +231,9 @@ function buildNotesCell(job) {
 function buildRow(job) {
   const tr = document.createElement("tr");
 
-  const companyTd = document.createElement("td");
-  companyTd.className = "dashboard__col--company";
-  companyTd.textContent = job.company;
-  companyTd.title = job.company;
-  tr.appendChild(companyTd);
-
-  const titleTd = document.createElement("td");
-  titleTd.className = "dashboard__col--title";
-  titleTd.textContent = job.jobTitle;
-  titleTd.title = job.jobTitle;
-  tr.appendChild(titleTd);
-
-  const locationTd = document.createElement("td");
-  locationTd.className = "dashboard__col--full";
-  locationTd.textContent = job.location;
-  tr.appendChild(locationTd);
+  tr.appendChild(buildTruncatedCell(job.company, "dashboard__col--company"));
+  tr.appendChild(buildTruncatedCell(job.jobTitle, "dashboard__col--title"));
+  tr.appendChild(buildTruncatedCell(job.location, "dashboard__col--full"));
 
   const dateTd = document.createElement("td");
   dateTd.className = "dashboard__col--full";
@@ -180,7 +251,7 @@ function buildRow(job) {
   deleteBtn.type = "button";
   deleteBtn.className = "dashboard__delete";
   deleteBtn.setAttribute("aria-label", "Delete");
-  deleteBtn.innerHTML = TRASH_ICON;
+  deleteBtn.appendChild(trashIconTemplate.content.cloneNode(true));
   deleteBtn.addEventListener("click", async () => {
     await deleteJob(job.id);
     tr.remove();
@@ -202,7 +273,8 @@ function buildEmptyRow() {
 }
 
 async function renderJobs() {
-  closeNotesPopover();
+  closeActivePopover();
+  collapseExpandedCell();
   const jobs = await getAllJobs();
   tbody.innerHTML = "";
 
@@ -214,15 +286,69 @@ async function renderJobs() {
   jobs.forEach((job) => tbody.appendChild(buildRow(job)));
 }
 
+// Only present on the full view — the popup has no room for a sidebar to
+// collapse. Collapsed state persists across visits like the theme does.
+function initSidebarToggle() {
+  sidebarToggle = document.getElementById("sidebar-toggle");
+  const dashboardEl = document.querySelector(".dashboard");
+  if (!sidebarToggle || !dashboardEl) return;
+
+  const syncLabel = () => {
+    const collapsed = dashboardEl.classList.contains("is-sidebar-collapsed");
+    sidebarToggle.setAttribute(
+      "aria-label",
+      collapsed ? "Expand sidebar" : "Collapse sidebar",
+    );
+  };
+
+  let collapsed = false;
+  try {
+    collapsed = localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
+  } catch {
+    // Storage may be unavailable (e.g. private browsing) — default open.
+  }
+
+  // Restoring a saved state shouldn't replay the collapse transition —
+  // only a user-triggered click (below) should animate. Removed after the
+  // first paint so later toggles transition normally.
+  dashboardEl.classList.add("dashboard--no-transition");
+  dashboardEl.classList.toggle("is-sidebar-collapsed", collapsed);
+  syncLabel();
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      dashboardEl.classList.remove("dashboard--no-transition");
+    });
+  });
+
+  sidebarToggle.addEventListener("click", () => {
+    dashboardEl.classList.toggle("is-sidebar-collapsed");
+    syncLabel();
+    try {
+      localStorage.setItem(
+        SIDEBAR_COLLAPSED_KEY,
+        dashboardEl.classList.contains("is-sidebar-collapsed"),
+      );
+    } catch {
+      // Ignore — nothing to persist to.
+    }
+  });
+}
+
 export function initDashboard() {
   tbody = document.getElementById("jobs-tbody");
   greeting = document.getElementById("greeting");
   avatar = document.getElementById("user-avatar");
+  trashIconTemplate = document.getElementById("trash-icon-template");
+
+  if (avatar)
+    avatar.addEventListener("click", () => openProfilePopover(avatar));
+
+  initSidebarToggle();
 
   renderGreeting();
   renderJobs();
 
-  // Re-render if storage changes from another context (e.g. a new job just saved).
+  // Re-render on storage changes from another context (e.g. a new job saved).
   browser.storage.onChanged.addListener((changes) => {
     if (!changes.liber_jobs) return;
     if (activePopover) {
