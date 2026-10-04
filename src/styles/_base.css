@@ -195,7 +195,7 @@ button {
   &:hover,
   &:focus {
     background: var(--clr-accent-transparent);
-    transform: scale(1.005);
+    transform: none;
   }
 }
 

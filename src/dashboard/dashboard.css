@@ -1,13 +1,14 @@
 @import "../styles/_base.css";
 @import "./dashboard-shared.css";
 
-/* Fixed-size popup — compact layout, only the columns that matter at a
-   glance. Full columns/sidebar live in dashboard-full.css. */
+/* Fixed-size popup — compact card list of the most recent applications.
+   Full table/sidebar live in dashboard-full.css. */
 body {
   width: 23rem;
   max-height: 30rem;
-  overflow-y: auto;
+  overflow: hidden auto;
   background: var(--clr-light);
+  border-radius: var(--border-radius);
 }
 
 .dashboard {
@@ -19,7 +20,7 @@ body {
 
 .dashboard__header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
 }
@@ -33,13 +34,13 @@ body {
     position: static;
     width: 2.1rem;
   }
-}
 
-.dashboard__title {
-  margin: 0;
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--clr-dark);
+  .dashboard__label {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 900;
+    color: var(--clr-dark);
+  }
 }
 
 .dashboard__theme-toggle {
@@ -50,51 +51,75 @@ body {
   }
 }
 
-.dashboard__expand {
-  flex: none;
-  width: auto;
+.dashboard__avatar {
+  width: 2.3rem;
+  font-size: 0.9rem;
+}
+
+.dashboard__cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.dashboard__card {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-3);
-  font-size: 0.75rem;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   background: var(--clr-white);
+  border: 1px solid var(--clr-grey);
+  border-radius: var(--border-radius);
+}
+
+.dashboard__card-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.dashboard__card-title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
   color: var(--clr-dark);
-  border: 1px solid var(--clr-grey-dark);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard__card-company {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--clr-dark);
+  opacity: 0.65;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard__card-date {
+  margin: 0;
+  flex: none;
+  font-size: 0.72rem;
+  color: var(--clr-dark);
+  opacity: 0.5;
+  white-space: nowrap;
+}
+
+.dashboard__cards .dashboard__empty {
+  padding: var(--space-8) var(--space-3);
+  text-align: center;
+}
+
+.dashboard__view-full {
+  background: var(--clr-accent);
+  color: var(--clr-white);
 
   &:hover,
   &:focus {
-    background: var(--clr-accent-transparent);
-    color: var(--clr-accent-hover);
-    transform: none;
+    background: var(--clr-accent-hover);
   }
-}
-
-.dashboard__table {
-  font-size: 0.78rem;
-
-  & th,
-  & td {
-    padding: var(--space-2) var(--space-2);
-  }
-}
-
-/* :not() keeps this out of the way once a cell expands — otherwise its
-   extra specificity would re-clamp the expanded overlay back to 6rem. */
-.dashboard__col--company .dashboard__cell-content:not(.dashboard__cell-content--expanded),
-.dashboard__col--title .dashboard__cell-content:not(.dashboard__cell-content--expanded) {
-  max-width: 6rem;
-}
-
-.dashboard__notes-btn {
-  max-width: 6rem;
-}
-
-.dashboard__select {
-  font-size: 0.72rem;
-  padding: var(--space-1) var(--space-2);
-}
-
-.dashboard__delete {
-  font-size: 0.72rem;
 }

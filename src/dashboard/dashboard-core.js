@@ -1,5 +1,6 @@
-// Shared table-rendering logic for both dashboard pages (popup and full
-// view) — their markup is identical, only page chrome/CSS differs.
+// Shared rendering logic for both dashboard pages. The full view renders
+// every job as a table row; the popup (cardMode) renders a capped list of
+// cards instead — only page chrome/CSS and this render mode differ.
 import {
   getAllJobs,
   updateJob,
@@ -13,6 +14,9 @@ const EMPTY_MESSAGE =
 const COLUMN_COUNT = 7;
 
 let tbody;
+let cardsList;
+let cardMode = false;
+let cardLimit = 5;
 let greeting;
 let avatar;
 let sidebarToggle;
@@ -33,7 +37,8 @@ const SIDEBAR_COLLAPSED_KEY = "liber_sidebar_collapsed";
 async function renderGreeting() {
   profileData = await getProfile();
   if (profileData) {
-    greeting.textContent = `Tracking my applications for: ${profileData.profession}`;
+    if (greeting)
+      greeting.textContent = `Tracking my applications for: ${profileData.profession}`;
     if (avatar)
       avatar.textContent = profileData.name.trim().charAt(0).toUpperCase();
   }
@@ -272,10 +277,55 @@ function buildEmptyRow() {
   return tr;
 }
 
+function buildCard(job) {
+  const card = document.createElement("div");
+  card.className = "dashboard__card";
+
+  const main = document.createElement("div");
+  main.className = "dashboard__card-main";
+
+  const title = document.createElement("p");
+  title.className = "dashboard__card-title";
+  title.textContent = job.jobTitle;
+  main.appendChild(title);
+
+  const company = document.createElement("p");
+  company.className = "dashboard__card-company";
+  company.textContent = job.company;
+  main.appendChild(company);
+
+  card.appendChild(main);
+
+  const date = document.createElement("p");
+  date.className = "dashboard__card-date";
+  date.textContent = new Date(job.dateAdded).toLocaleDateString();
+  card.appendChild(date);
+
+  return card;
+}
+
+function buildEmptyCard() {
+  const div = document.createElement("div");
+  div.className = "dashboard__empty";
+  div.textContent = EMPTY_MESSAGE;
+  return div;
+}
+
 async function renderJobs() {
   closeActivePopover();
   collapseExpandedCell();
   const jobs = await getAllJobs();
+
+  if (cardMode) {
+    cardsList.innerHTML = "";
+    if (jobs.length === 0) {
+      cardsList.appendChild(buildEmptyCard());
+      return;
+    }
+    jobs.slice(0, cardLimit).forEach((job) => cardsList.appendChild(buildCard(job)));
+    return;
+  }
+
   tbody.innerHTML = "";
 
   if (jobs.length === 0) {
@@ -334,11 +384,18 @@ function initSidebarToggle() {
   });
 }
 
-export function initDashboard() {
-  tbody = document.getElementById("jobs-tbody");
+export function initDashboard(options = {}) {
+  cardMode = !!options.cardMode;
+  if (options.cardLimit) cardLimit = options.cardLimit;
+
+  if (cardMode) {
+    cardsList = document.getElementById("jobs-cards");
+  } else {
+    tbody = document.getElementById("jobs-tbody");
+    trashIconTemplate = document.getElementById("trash-icon-template");
+  }
   greeting = document.getElementById("greeting");
   avatar = document.getElementById("user-avatar");
-  trashIconTemplate = document.getElementById("trash-icon-template");
 
   if (avatar)
     avatar.addEventListener("click", () => openProfilePopover(avatar));

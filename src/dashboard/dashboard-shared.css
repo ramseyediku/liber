@@ -109,7 +109,7 @@
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  padding: var(--space-2) var(--space-7) var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-7) var(--space-3) var(--space-2);
   border-radius: var(--border-radius);
   border: none;
   font-weight: 600;
@@ -234,6 +234,12 @@
   font-family: var(--heading-font-family);
   font-size: 1.05rem;
   font-weight: 700;
+
+  &:hover,
+  &:focus {
+    background: var(--clr-accent-hover);
+    transform: none;
+  }
 }
 
 .dashboard__greeting,
@@ -323,7 +329,6 @@
   display: flex;
   justify-content: flex-start;
   margin-top: var(--space-2);
-  padding: var(--space-3);
 
   button {
     width: auto;

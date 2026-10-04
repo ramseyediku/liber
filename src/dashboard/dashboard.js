@@ -8,5 +8,5 @@ document.getElementById("expand-view").addEventListener("click", () => {
   window.close();
 });
 
-initDashboard();
+initDashboard({ cardMode: true, cardLimit: 5 });
 LiberTheme.initToggle(document.getElementById("theme-toggle"));
