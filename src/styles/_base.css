@@ -18,6 +18,7 @@
   --theme-light-accent-hover: hsl(224, 76%, 42.5%);
   --theme-light-accent-light: hsl(221, 83%, 63%);
   --theme-light-accent-transparent: hsl(221, 83%, 53%, 0.1);
+  --theme-light-row-hover: rgba(31, 31, 31, 0.03);
   --theme-light-shadow:
     rgba(60, 64, 67, 0.3) 0px 1px 2px 0px,
     rgba(60, 64, 67, 0.15) 0px 1px 3px 1px;
@@ -33,6 +34,7 @@
   --theme-dark-accent-hover: hsl(213, 97%, 91%);
   --theme-dark-accent-light: hsl(217, 89%, 72%);
   --theme-dark-accent-transparent: hsla(217, 89%, 82%, 0.12);
+  --theme-dark-row-hover: rgba(255, 255, 255, 0.025);
   --theme-dark-shadow:
     rgba(0, 0, 0, 0.5) 0px 1px 2px 0px, rgba(0, 0, 0, 0.3) 0px 1px 3px 1px;
 
@@ -48,16 +50,23 @@
   --clr-accent-hover: var(--theme-light-accent-hover);
   --clr-accent-light: var(--theme-light-accent-light);
   --clr-accent-transparent: var(--theme-light-accent-transparent);
+  --clr-row-hover: var(--theme-light-row-hover);
 
-  /* Job status colors  */
-  --clr-applied: hsla(217, 91%, 75%, 0.55);
-  --clr-applied-text: hsl(217, 91%, 30%);
-  --clr-rejected: hsla(0, 84%, 75%, 0.55);
-  --clr-rejected-text: hsl(0, 84%, 32%);
+  /* Job status colors — solid and theme-tuned (not one translucent value
+     reused as-is in dark mode), so pills stay vivid and legible on both
+     the white and the dark surface instead of going muddy on the latter. */
+  --clr-applied: hsl(217, 91%, 88%);
+  --clr-applied-text: hsl(217, 91%, 32%);
+  --clr-applied-dot: hsl(217, 91%, 55%);
+  --clr-rejected: hsl(0, 90%, 90%);
+  --clr-rejected-text: hsl(0, 84%, 36%);
   --clr-rejected-transparent: hsla(0, 84%, 75%, 0.08);
-  --clr-ghosted: hsla(218, 11%, 80%, 0.55);
-  --clr-interviewing: hsla(38, 92%, 70%, 0.55);
-  --clr-interviewing-text: hsl(38, 92%, 30%);
+  --clr-rejected-dot: hsl(0, 84%, 55%);
+  --clr-ghosted: hsl(218, 14%, 86%);
+  --clr-ghosted-dot: hsl(218, 11%, 55%);
+  --clr-interviewing: hsl(36, 95%, 85%);
+  --clr-interviewing-text: hsl(30, 90%, 30%);
+  --clr-interviewing-dot: hsl(38, 92%, 48%);
 
   --border-radius: 0.95rem;
 
@@ -93,6 +102,19 @@
     --clr-accent-hover: var(--theme-dark-accent-hover);
     --clr-accent-light: var(--theme-dark-accent-light);
     --clr-accent-transparent: var(--theme-dark-accent-transparent);
+    --clr-row-hover: var(--theme-dark-row-hover);
+
+    --clr-applied: hsl(217, 55%, 28%);
+    --clr-applied-text: hsl(217, 95%, 86%);
+    --clr-applied-dot: hsl(217, 91%, 75%);
+    --clr-rejected: hsl(0, 55%, 32%);
+    --clr-rejected-text: hsl(0, 90%, 86%);
+    --clr-rejected-dot: hsl(0, 84%, 72%);
+    --clr-ghosted: hsl(218, 14%, 38%);
+    --clr-ghosted-dot: hsl(218, 11%, 65%);
+    --clr-interviewing: hsl(32, 60%, 26%);
+    --clr-interviewing-text: hsl(38, 95%, 82%);
+    --clr-interviewing-dot: hsl(38, 92%, 65%);
 
     --box-shadow: var(--theme-dark-shadow);
 

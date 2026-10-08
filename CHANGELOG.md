@@ -32,6 +32,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `web_accessible_resources`) for instant feedback when a job is detected,
   played from the content script rather than the confirmation notification
   — see `roadmap.md` for why.
+- Duplicate-job detection in `addJob()` (`src/shared/storage.js`): a job is
+  skipped (not re-saved) if its normalized `jobTitle` + `company` +
+  `location` already matches an existing record. See "Design notes: dedup
+  key" in `docs/architecture.md` for the reasoning.
+- Company-extraction fallbacks in `content.js` — known-ATS URL slug
+  (Lever/Greenhouse/Workday/SmartRecruiters/Ashby/BambooHR), page-wide
+  `Organization` JSON-LD, and the non-title segment of `document.title` —
+  tried before falling back to "Unknown company", so the dedup key above is
+  less likely to collide on an unidentified company.
 
 ### Changed
 - Dashboard greeting now shows the user's profession with their initial in

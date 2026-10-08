@@ -24,6 +24,18 @@ function generateId() {
     : `job_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 }
 
+function normalizeKeyPart(str) {
+  return (str || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+// Title/company/location should uniquely identify a real job posting, so
+// this doubles as the dedup key — avoids an O(n) full-record comparison.
+function buildJobKey(job) {
+  return [job.jobTitle, job.company, job.location]
+    .map(normalizeKeyPart)
+    .join("|");
+}
+
 export async function getAllJobs() {
   const result = await browser.storage.local.get(JOBS_KEY);
   return result[JOBS_KEY] || [];
@@ -42,6 +54,11 @@ export async function addJob(partialJob) {
     location: partialJob.location || "",
     notes: "",
   };
+
+  const newKey = buildJobKey(newJob);
+  const existingKeys = new Set(jobs.map(buildJobKey));
+  if (existingKeys.has(newKey)) return null;
+
   jobs.unshift(newJob);
   await browser.storage.local.set({ [JOBS_KEY]: jobs });
   return newJob;

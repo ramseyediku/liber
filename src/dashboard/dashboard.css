@@ -21,7 +21,6 @@ body {
 .dashboard__header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-2);
 }
 
@@ -43,23 +42,23 @@ body {
   }
 }
 
-.dashboard__theme-toggle {
-  width: 2.3rem;
-
-  svg {
-    width: 1.15rem;
-  }
+.dashboard__section-label {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--clr-dark);
+  opacity: 0.55;
 }
 
-.dashboard__avatar {
-  width: 2.3rem;
-  font-size: 0.9rem;
-}
-
+/* One rounded surface housing all rows, divided by a border between them —
+   not separate gapped cards — matching the provided popup design. */
 .dashboard__cards {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  background: var(--clr-white);
+  border: 1px solid var(--clr-grey);
+  border-radius: var(--border-radius);
+  overflow: hidden;
 }
 
 .dashboard__card {
@@ -67,10 +66,12 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: var(--clr-white);
-  border: 1px solid var(--clr-grey);
-  border-radius: var(--border-radius);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--clr-grey);
+
+  &:last-child {
+    border-bottom: none;
+  }
 }
 
 .dashboard__card-main {
@@ -82,7 +83,7 @@ body {
 
 .dashboard__card-title {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-weight: 700;
   color: var(--clr-dark);
   overflow: hidden;
@@ -90,23 +91,28 @@ body {
   white-space: nowrap;
 }
 
-.dashboard__card-company {
+/* "Company · date added" on one line, as in the design. */
+.dashboard__card-meta {
   margin: 0;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: var(--clr-dark);
-  opacity: 0.65;
+  opacity: 0.6;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.dashboard__card-date {
-  margin: 0;
+/* Static badge here (a <span>, not the full view's dropdown <button>), so
+   it reuses the pill's color classes without the interactive affordances. */
+.dashboard__card .dashboard__status-pill {
   flex: none;
-  font-size: 0.72rem;
-  color: var(--clr-dark);
-  opacity: 0.5;
-  white-space: nowrap;
+  width: auto;
+  cursor: default;
+
+  &:hover,
+  &:focus {
+    filter: none;
+  }
 }
 
 .dashboard__cards .dashboard__empty {
@@ -115,11 +121,33 @@ body {
 }
 
 .dashboard__view-full {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  font-size: 0.85rem;
   background: var(--clr-accent);
   color: var(--clr-white);
+
+  svg {
+    width: 0.9rem;
+    aspect-ratio: 1;
+  }
 
   &:hover,
   &:focus {
     background: var(--clr-accent-hover);
   }
+}
+
+/* Sits above the "View all applications" button and makes the 4-card cap
+   in renderJobs() visible instead of silently truncating the list. */
+.dashboard__jobs-count {
+  margin: 0;
+  padding: 0 var(--space-2);
+  font-size: 0.78rem;
+  text-align: center;
+  color: var(--clr-dark);
+  opacity: 0.5;
 }

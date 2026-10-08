@@ -17,6 +17,18 @@ LinkedIn and Indeed, plus a generic `default` fallback). Sends the scraped
 payload to the background worker via `browser.runtime.sendMessage` as a
 `JOB_APPLY_DETECTED` message.
 
+`company` in particular falls through a long chain of guesses, in order of
+trust: platform selector → `JobPosting` JSON-LD `hiringOrganization` →
+`og:site_name` meta tag → generic `[class*="company"]` selector → a
+known-ATS URL slug (`companyFromUrl` — Lever/Greenhouse/Workday/
+SmartRecruiters/Ashby/BambooHR embed the company in their hostname or path)
+→ a page-wide `Organization` JSON-LD block (`getOrganizationLd`, broader
+than the JobPosting-scoped lookup above) → the non-title segment of
+`document.title` (`companyFromDocumentTitle`) → `""`. The extra fallbacks
+exist so a seen-but-unlabeled company is still captured — see "Design
+notes: dedup key" below for why that matters beyond just a nicer-looking
+dashboard.
+
 ### `src/background/background.js` — Background service worker
 
 The central coordinator. Responsibilities:
@@ -33,7 +45,8 @@ The single source of truth for reading/writing extension data. Wraps
 `browser.storage.local` so nothing else touches raw storage calls directly.
 
 - `getAllJobs` / `addJob` / `updateJob` / `deleteJob` — job CRUD, keyed under
-  `liber_jobs`.
+  `liber_jobs`. `addJob` skips inserting a job whose composite key already
+  exists — see "Design notes: dedup key" below.
 - `getProfile` / `setProfile` / `isOnboarded` — user profile, keyed under
   `liber_profile`.
 - `STATUS` / `STATUS_META` — the status enum (`applied`, `interviewing`,
@@ -122,3 +135,46 @@ dashboard.js (storage.onChanged listener) → re-render table
   profession: string,
 }
 ```
+
+## Design notes: dedup key
+
+`addJob` has one call site (`background.js`, on "Save to Liber"), and every
+call re-scrapes a live page — there's no bulk import — so nothing stopped
+the same posting from being saved twice if a user clicked "Apply" on it more
+than once.
+
+The naive fix — compare the incoming job against every existing record
+field-by-field — is an O(n) scan *per field comparison*, and gets worse the
+more fields you check. The actual fix is cheaper: collapse each job down to
+one composite string key and do set membership instead of comparison.
+`jobTitle` + `company` + `location` was chosen as that key because, together,
+they should uniquely identify one real posting — two genuinely different
+jobs sharing all three is unlikely, whereas any one of them alone (e.g.
+title) collides constantly ("Software Engineer" exists everywhere).
+
+Two things had to be true for that key to actually work, both addressed
+alongside the dedup check itself:
+
+- **Normalization.** `jobTitle` is scraped via several different strategies
+  (CSS selector vs. JSON-LD vs. `<title>` fallback) depending on what the
+  page offers, so the exact same job can come back with different casing or
+  stray whitespace depending on which strategy fired. `buildJobKey`
+  lowercases, trims, and collapses whitespace on each part before joining
+  them, so those formatting differences don't produce a false "new job".
+- **Fixing the data, not the key.** The scraper already had a fallback
+  default of `"Unknown company"` for a job with no detectable company. Keying
+  on that placeholder directly would be wrong — two unrelated jobs with the
+  same title and an undetected company would collide and the second would
+  silently vanish. Rather than carve out a special case in the key (e.g.
+  falling back to URL when company is a placeholder), the extraction itself
+  was made more thorough (see the `content.js` section above) so
+  `"Unknown company"` is rare in practice, and the key stays simple.
+
+Cost-wise, `addJob` already calls `getAllJobs()` to get the array it's about
+to `unshift` into — so building `new Set(jobs.map(buildJobKey))` from that
+same array is the only extra work added. No second storage read, and the
+whole dedup check stays O(n) with a plain hash lookup, same complexity class
+`addJob` already had.
+
+On a key collision, `addJob` returns `null` instead of inserting. There's
+currently no UI feedback for that — see `roadmap.md`.

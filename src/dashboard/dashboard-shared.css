@@ -3,7 +3,19 @@
 
 .dashboard__table-wrap {
   overflow-x: auto;
+  background: var(--clr-white);
+  border: 1px solid rgba(31, 31, 31, 0.04);
   border-radius: var(--border-radius);
+  box-shadow:
+    0 1px 1px rgba(15, 23, 42, 0.02),
+    0 8px 24px -16px rgba(15, 23, 42, 0.08);
+
+  @container style(--theme-icon: "🌙") {
+    border-color: rgba(255, 255, 255, 0.05);
+    box-shadow:
+      0 1px 1px rgba(0, 0, 0, 0.15),
+      0 10px 28px -18px rgba(0, 0, 0, 0.45);
+  }
 }
 
 .dashboard__table {
@@ -11,16 +23,24 @@
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.85rem;
-  background: var(--clr-white);
-  border-radius: var(--border-radius);
 
   & th,
   & td {
     position: relative;
     text-align: left;
-    padding: var(--space-2) var(--space-3);
+    padding: var(--space-3) var(--space-4);
     border-bottom: 1px solid var(--clr-grey);
     white-space: nowrap;
+  }
+
+  & th:first-child,
+  & td:first-child {
+    padding-left: var(--space-6);
+  }
+
+  & th:last-child,
+  & td:last-child {
+    padding-right: var(--space-5);
   }
 
   & tbody tr:last-child td {
@@ -33,30 +53,17 @@
 
     &:hover td,
     &:active td {
-      /* Flat darkening overlay so it stays darker in both themes. */
-      background: rgba(0, 0, 0, 0.05);
+      background: var(--clr-row-hover);
     }
   }
 
   & th {
     position: relative;
-    background: var(--clr-white);
-    font-weight: 600;
-    font-size: 1.25em;
-    padding: var(--space-3) var(--space-4);
+    font-weight: 500;
+    font-size: 0.8rem;
+    opacity: 0.62;
+    padding: var(--space-4) var(--space-4) var(--space-3);
     color: var(--clr-dark);
-
-    /* Full-height separator. Skips the last two columns since the final
-       (actions) header is always empty. */
-    &:not(:last-child):not(:nth-last-child(2))::after {
-      content: "";
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      right: 0;
-      width: 1px;
-      background: var(--clr-grey-dark);
-    }
   }
 
   & .dashboard__col--full {
@@ -76,24 +83,31 @@
    resizing the column or the row. */
 .dashboard__cell-content {
   display: block;
-  max-width: 9rem;
+  /* max-width: 9rem; */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
+  width: 90%;
+  color: var(--clr-dark);
 }
 
+.dashboard__col--company .dashboard__cell-content {
+  font-weight: 600;
+}
+
+/* position: fixed (placed at the cell's own on-screen rect by
+   dashboard-core.js) instead of absolute inside the table — so expanding a
+   cell near the table's edge never grows the (overflow-x: auto) wrap's
+   scrollable area and shifts anything below it. */
 .dashboard__cell-content--expanded {
-  position: absolute;
-  top: 0;
-  left: 0;
+  position: fixed;
   z-index: 5;
   display: flex;
   align-items: center;
-  height: 100%;
   width: max-content;
   max-width: 26rem;
-  padding: 0 var(--space-3) 0 0;
+  padding: var(--space-2) var(--space-4) var(--space-2);
   background: var(--clr-white);
   box-shadow: var(--box-shadow);
   border-radius: var(--border-radius);
@@ -102,80 +116,150 @@
   cursor: pointer;
 }
 
-/* appearance: none so the status background-color fills the whole control
-   in Firefox/Safari too. Text uses a darker shade of the same status
-   color (--clr-*-text) instead of plain white. */
-.dashboard__select {
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  padding: var(--space-3) var(--space-7) var(--space-3) var(--space-2);
-  border-radius: var(--border-radius);
+/* Status pill button that opens the floating .dashboard__status-menu
+   listbox below (built/positioned in dashboard-core.js, same pattern as
+   the notes and profile popovers). */
+.dashboard__status-pill {
+  width: auto;
+  height: 2.15rem;
+  padding: 0 var(--space-3) 0 var(--space-4);
+  border-radius: calc(var(--border-radius) / 2);
   border: none;
   font-weight: 600;
   font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
   cursor: pointer;
+  transition: filter 150ms ease;
 
-  /* Where supported, upgrade to the customizable-select API so the open
-     picker's <option>s can be colored directly (below). */
-  @supports (appearance: base-select) {
-    appearance: base-select;
+  &:hover,
+  &:focus {
+    transform: none;
+    filter: brightness(0.92);
+  }
 
-    &::picker(select) {
-      padding: var(--space-1);
-      border: 1px solid var(--clr-grey-dark);
-      border-radius: var(--border-radius);
-      background: var(--clr-white);
-    }
+  svg {
+    width: 0.85em;
+    aspect-ratio: 1;
+    opacity: 0.75;
   }
 }
-.dashboard__select--applied {
+
+/* Fixes the pill's width to the longest status label ("Interviewing") so
+   picking a shorter one from the dropdown doesn't shift the row/column
+   width around it. Scoped to the table only — the popup's static badge
+   (.dashboard__card .dashboard__status-pill) stays auto-width. */
+.dashboard__table .dashboard__status-pill {
+  min-width: 9rem;
+  justify-content: flex-start;
+}
+
+/* Each re-asserts its own background-color on hover/focus — otherwise the
+   global button:hover rule (higher specificity than a plain modifier
+   class) wins and flashes every pill the same accent blue. The darkening
+   itself comes from the filter: brightness() above. */
+.dashboard__status-pill--applied {
   background-color: var(--clr-applied);
   color: var(--clr-applied-text);
+
+  &:hover,
+  &:focus {
+    background-color: var(--clr-applied);
+  }
 }
 
-.dashboard__select--rejected {
+.dashboard__status-pill--rejected {
   background-color: var(--clr-rejected);
   color: var(--clr-rejected-text);
+
+  &:hover,
+  &:focus {
+    background-color: var(--clr-rejected);
+  }
 }
 
-.dashboard__select--ghosted {
+.dashboard__status-pill--ghosted {
   background-color: var(--clr-ghosted);
   color: var(--clr-dark);
+
+  &:hover,
+  &:focus {
+    background-color: var(--clr-ghosted);
+  }
 }
 
-.dashboard__select--interviewing {
+.dashboard__status-pill--interviewing {
   background-color: var(--clr-interviewing);
   color: var(--clr-interviewing-text);
+
+  &:hover,
+  &:focus {
+    background-color: var(--clr-interviewing);
+  }
 }
 
-/* Per-status option colors in the open picker. */
-@supports (appearance: base-select) {
-  .dashboard__select option {
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--border-radius);
-    font-weight: 600;
+/* Floating listbox opened by the status pill above. */
+.dashboard__status-menu {
+  width: 12rem;
+  padding: var(--space-1);
+}
+
+.dashboard__status-option {
+  width: 100%;
+  height: 2.5rem;
+  padding: 0 var(--space-3);
+  border: none;
+  border-radius: calc(var(--border-radius) - 0.25rem);
+  background: transparent;
+  color: var(--clr-dark);
+  font: inherit;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: left;
+  cursor: pointer;
+
+  &:hover,
+  &:focus {
+    transform: none;
+    background: var(--clr-grey);
   }
 
-  .dashboard__select option[value="applied"] {
-    background: var(--clr-applied);
-    color: var(--clr-applied-text);
+  .dashboard__status-dot {
+    flex: none;
+    width: 0.5rem;
+    aspect-ratio: 1;
+    border-radius: 50%;
   }
 
-  .dashboard__select option[value="rejected"] {
-    background: var(--clr-rejected);
-    color: var(--clr-rejected-text);
+  span {
+    flex: 1;
   }
 
-  .dashboard__select option[value="ghosted"] {
-    background: var(--clr-ghosted);
-    color: var(--clr-dark);
+  svg {
+    flex: none;
+    width: 0.9rem;
+    aspect-ratio: 1;
+    color: var(--clr-accent);
   }
+}
 
-  .dashboard__select option[value="interviewing"] {
-    background: var(--clr-interviewing);
-    color: var(--clr-interviewing-text);
-  }
+.dashboard__status-dot--applied {
+  background: var(--clr-applied-dot);
+}
+
+.dashboard__status-dot--rejected {
+  background: var(--clr-rejected-dot);
+}
+
+.dashboard__status-dot--ghosted {
+  background: var(--clr-ghosted-dot);
+}
+
+.dashboard__status-dot--interviewing {
+  background: var(--clr-interviewing-dot);
 }
 
 .dashboard__delete {
@@ -189,7 +273,7 @@
   border: none;
   color: var(--clr-dark);
   cursor: pointer;
-  opacity: 0.5;
+  opacity: 0.45;
   /* Overrides the global button transition, which delayed the icon fill. */
   transition: none;
 
@@ -200,26 +284,20 @@
 
   &:hover,
   &:focus {
-    color: var(--clr-rejected);
+    /* -text, not the pill background var — that one is now a pale pastel
+       meant to sit behind dark text, not stand alone as an icon color. */
+    color: var(--clr-rejected-text);
     opacity: 1;
     background: var(--clr-rejected-transparent);
-    transform: scale(1.01);
+    transform: none;
 
+    /* Fill is inherited by the <use>-referenced trash icon's paths/lines
+       (they set no fill of their own), so this reaches them without
+       needing to select into its shadow tree. */
     svg {
-      path,
-      line {
-        fill: var(--clr-rejected);
-      }
+      fill: var(--clr-rejected-text);
     }
   }
-}
-
-/* Popup header's theme toggle + "open full view" button. */
-.dashboard__header-actions {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
 }
 
 .dashboard__avatar {
@@ -242,37 +320,85 @@
   }
 }
 
-.dashboard__greeting,
 .dashboard__empty {
   color: var(--clr-dark);
   opacity: 0.65;
 }
 
+/* The "Tracking my applications for" label is dimmed; the profession
+   pill after it isn't, so it reads as the one solid, editable value in
+   an otherwise muted line — same contrast relationship as the design. */
 .dashboard__greeting {
   margin: var(--space-4) 0 var(--space-1);
-  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-size: 0.9rem;
+  color: var(--clr-dark);
+}
+
+.dashboard__greeting-label {
+  opacity: 0.65;
+}
+
+.dashboard__profession-pill {
+  height: 1.9rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--clr-grey-dark);
+  border-radius: 999px;
+  background: var(--clr-white);
+  color: var(--clr-dark);
+  font-weight: 600;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+
+  svg {
+    width: 0.8em;
+    aspect-ratio: 1;
+    opacity: 0.6;
+  }
 }
 
 /* Opens the notes popover below, instead of editing inline. */
 .dashboard__notes-btn {
   width: min(auto, 12rem);
-  padding: var(--space-1) var(--space-3);
-  font-size: 0.95rem;
-  font-weight: 700;
-  background: var(--clr-grey);
-  color: var(--clr-dark);
+  height: 2rem;
+  padding: 0 var(--space-3) 0 var(--space-2);
+  margin-left: calc(var(--space-2) * -1);
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: transparent;
+  color: var(--clr-accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+
+  svg {
+    width: 0.85em;
+    aspect-ratio: 1;
+  }
 
   &:hover,
   &:focus {
-    background: var(--clr-accent-transparent);
-    color: var(--clr-accent-hover);
+    background: var(--clr-grey);
+    color: var(--clr-accent);
     transform: none;
   }
 }
 
 .dashboard__notes-btn--empty {
   color: var(--clr-dark);
-  opacity: 0.5;
+  opacity: 0.65;
+  font-weight: 500;
+
+  &:hover,
+  &:focus {
+    color: var(--clr-dark);
+  }
 }
 
 /* Shared chrome for every floating popover (notes, profile, …), appended
@@ -355,6 +481,76 @@
   font-size: 0.85rem;
   color: var(--clr-dark);
   opacity: 0.65;
+}
+
+/* Floating pill nav, centered under the table and pinned to the bottom of
+   the viewport while it's in view (full view only — the popup caps its
+   list instead of paginating it). */
+.dashboard__pagination {
+  position: sticky;
+  bottom: var(--space-6);
+  width: fit-content;
+  margin: var(--space-6) auto 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1);
+  background: var(--clr-white);
+  border: 1px solid var(--clr-grey);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+}
+
+.dashboard__page-arrow,
+.dashboard__page-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: none;
+  border-radius: calc(var(--border-radius) - 0.25rem);
+  background: transparent;
+  color: var(--clr-dark);
+  display: grid;
+  place-items: center;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+
+  &:hover,
+  &:focus {
+    background: var(--clr-grey);
+    transform: none;
+  }
+
+  svg {
+    width: 1rem;
+    aspect-ratio: 1;
+  }
+}
+
+.dashboard__page-arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+
+.dashboard__page-btn[aria-current="page"] {
+  background: var(--clr-accent-transparent);
+  color: var(--clr-accent);
+  font-weight: 600;
+
+  &:hover,
+  &:focus {
+    background: var(--clr-accent-transparent);
+  }
+}
+
+.dashboard__pagination-pages {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 /* Spring-like pop: overshoots slightly before settling. */

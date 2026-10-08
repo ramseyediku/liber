@@ -40,12 +40,37 @@
     return match || "default";
   }
 
-  function queryFirstText(selectorList) {
+  function queryFirstText(selectorList, root = document) {
     for (const selector of selectorList.split(",")) {
-      const el = document.querySelector(selector.trim());
+      const el = root.querySelector(selector.trim());
       if (el && el.textContent.trim()) return el.textContent.trim();
     }
     return "";
+  }
+
+  // On a search-results page, "Apply" sits inside one of many repeated job
+  // cards — walking up to the nearest ancestor that has siblings sharing its
+  // tag and class scopes every lookup below to *that* job, instead of
+  // whichever one the page's single-detail-view selectors happen to match
+  // (typically just the first one in the DOM). Returns null on an actual
+  // single-job detail page, where there's no repeated sibling to find and
+  // the existing document-wide lookups already work.
+  function findCardScope(el) {
+    let node = el;
+    while (node && node.parentElement && node !== document.body) {
+      const parent = node.parentElement;
+      const hasSibling =
+        node.className &&
+        Array.from(parent.children).some(
+          (sib) =>
+            sib !== node &&
+            sib.tagName === node.tagName &&
+            sib.className === node.className,
+        );
+      if (hasSibling) return node;
+      node = parent;
+    }
+    return null;
   }
 
   function getMetaContent(name) {
@@ -111,15 +136,103 @@
     return document.title.split(/\s+[|\-–—]\s+/)[0].trim();
   }
 
-  function scrapeJobDetails() {
+  // Last-resort company guess: the non-title segment of <title>, e.g.
+  // "Job Title - Company" or "Company hiring Job Title".
+  function companyFromDocumentTitle() {
+    const segments = document.title
+      .split(/\s+[|\-–—]\s+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return segments.length > 1 ? segments[1] : "";
+  }
+
+  function titleCaseSlug(slug) {
+    return slug
+      .replace(/[-_]+/g, " ")
+      .split(" ")
+      .filter(Boolean)
+      .map((word) => word[0].toUpperCase() + word.slice(1))
+      .join(" ");
+  }
+
+  // Many ATS platforms embed the company as a URL path segment or
+  // subdomain — a strong signal when nothing else on the page names it.
+  function companyFromUrl() {
+    const host = window.location.hostname.replace("www.", "");
+    const path = window.location.pathname;
+
+    const subdomainHosts = ["myworkdayjobs.com", "bamboohr.com"];
+    for (const suffix of subdomainHosts) {
+      if (host.endsWith(suffix)) {
+        const slug = host.slice(0, host.length - suffix.length - 1).split(".")[0];
+        if (slug && slug !== "www") return titleCaseSlug(slug);
+      }
+    }
+
+    const pathHosts = [
+      "jobs.lever.co",
+      "boards.greenhouse.io",
+      "job-boards.greenhouse.io",
+      "jobs.smartrecruiters.com",
+      "jobs.ashbyhq.com",
+    ];
+    if (pathHosts.includes(host)) {
+      const slug = path.split("/").filter(Boolean)[0];
+      if (slug) return titleCaseSlug(slug);
+    }
+
+    return "";
+  }
+
+  // Broader than getJobPostingLd(): looks for a standalone Organization
+  // block anywhere in the page's structured data, not just a JobPosting's
+  // hiringOrganization.
+  function getOrganizationLd() {
+    const scripts = document.querySelectorAll(
+      'script[type="application/ld+json"]',
+    );
+
+    for (const script of scripts) {
+      let parsed;
+      try {
+        parsed = JSON.parse(script.textContent);
+      } catch {
+        continue;
+      }
+
+      const candidates = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed?.["@graph"])
+          ? parsed["@graph"]
+          : [parsed];
+
+      for (const candidate of candidates) {
+        const type = candidate?.["@type"];
+        const isOrganization = Array.isArray(type)
+          ? type.includes("Organization")
+          : type === "Organization";
+        if (isOrganization && candidate.name) return candidate.name;
+      }
+    }
+
+    return "";
+  }
+
+  function scrapeJobDetails(clickedEl) {
     const platformKey = getPlatformKey();
     // Structured data and meta tags beat the crude `default` guesses, so
     // those are tried last.
     const specific = PLATFORM_SELECTORS[platformKey];
     const generic = PLATFORM_SELECTORS.default;
     const jobPosting = getJobPostingLd();
+    const cardScope = clickedEl && findCardScope(clickedEl);
 
+    // Card-scoped lookups (the job the user actually clicked) always win
+    // over page-wide signals, which on a listing page describe whichever
+    // job the page considers "current" — not necessarily the clicked one.
     const jobTitle =
+      (cardScope && specific && queryFirstText(specific.jobTitle, cardScope)) ||
+      (cardScope && queryFirstText(generic.jobTitle, cardScope)) ||
       (specific && queryFirstText(specific.jobTitle)) ||
       jobPosting?.title ||
       getMetaContent("og:title") ||
@@ -127,13 +240,20 @@
       cleanDocumentTitle();
 
     const company =
+      (cardScope && specific && queryFirstText(specific.company, cardScope)) ||
+      (cardScope && queryFirstText(generic.company, cardScope)) ||
       (specific && queryFirstText(specific.company)) ||
       orgName(jobPosting?.hiringOrganization) ||
       getMetaContent("og:site_name") ||
       queryFirstText(generic.company) ||
+      companyFromUrl() ||
+      getOrganizationLd() ||
+      companyFromDocumentTitle() ||
       "";
 
     const location =
+      (cardScope && specific && queryFirstText(specific.location, cardScope)) ||
+      (cardScope && queryFirstText(generic.location, cardScope)) ||
       (specific && queryFirstText(specific.location)) ||
       locationFromLd(jobPosting?.jobLocation) ||
       queryFirstText(generic.location) ||
@@ -145,6 +265,7 @@
       company,
       location,
       jobDescription: (
+        cardScope?.querySelector('[class*="description"]')?.textContent ||
         jobPosting?.description ||
         document.querySelector('[class*="description"]')?.textContent ||
         ""
@@ -181,7 +302,7 @@
         .play()
         .catch(() => {});
 
-      const details = scrapeJobDetails();
+      const details = scrapeJobDetails(target);
       browser.runtime.sendMessage({
         type: "JOB_APPLY_DETECTED",
         payload: details,

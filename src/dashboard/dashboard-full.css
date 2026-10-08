@@ -3,7 +3,7 @@
 
 .dashboard {
   display: grid;
-  grid-template-columns: 22rem 1fr 8rem;
+  grid-template-columns: 22rem 1fr 5rem;
   min-height: 100vh;
   background: var(--clr-light);
   transition: grid-template-columns 280ms ease;
@@ -15,10 +15,10 @@
   }
 
   &.is-sidebar-collapsed {
-    grid-template-columns: 5.5rem 1fr 8rem;
+    grid-template-columns: 5.5rem 1fr 5rem;
   }
 
-  @media (max-width: 960px) {
+  @media (max-width: 1024px) {
     grid-template-columns: 20rem 1fr;
 
     &.is-sidebar-collapsed {
@@ -26,8 +26,15 @@
     }
   }
 
-  @media (max-width: 720px) {
+  @media (max-width: 600px) {
     grid-template-columns: 1fr;
+
+    /* Same specificity as the collapsed rules above (two classes), so
+       without this the collapsed sidebar's 5.5rem column would win on
+       source order and never actually stack to one column on mobile. */
+    &.is-sidebar-collapsed {
+      grid-template-columns: 1fr;
+    }
   }
 
   .dashboard__aside {
@@ -38,7 +45,7 @@
     color: var(--clr-dark);
     overflow: hidden;
 
-    @media (max-width: 720px) {
+    @media (max-width: 600px) {
       flex-direction: row;
       align-items: center;
       flex-wrap: wrap;
@@ -176,25 +183,103 @@
 
         svg {
           color: var(--clr-accent);
-
-          rect,
-          circle {
-            fill: var(--clr-accent);
-          }
+          /* Fill is inherited by the <use>-referenced shapes below (they
+             set no fill of their own), so this colors all four rects of
+             the job icon without needing to reach into its shadow tree. */
+          fill: var(--clr-accent);
         }
       }
 
       &.dashboard__link--settings {
-        @media (max-width: 720px) {
+        @media (max-width: 600px) {
           margin-top: 0;
         }
       }
     }
 
     .dashboard__nav {
-      @media (max-width: 720px) {
+      @media (max-width: 600px) {
         flex: 1;
       }
+    }
+
+    /* Pinned to the bottom of the sidebar, left-aligned with the nav icons
+       above it — matches the new design's sidebar footer slot. Opens the
+       same profile popover as the popup's avatar (see openProfilePopover in
+       dashboard-core.js). */
+    .dashboard__sidebar-profile {
+      margin-top: auto;
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-2);
+      width: 100%;
+      background: none;
+      text-align: left;
+      border-radius: 14px;
+
+      &:hover,
+      &:focus {
+        background: var(--clr-accent-transparent);
+        transform: none;
+      }
+
+      /* Collapsed: shrink to just the avatar and center it in the column,
+         same pattern as .dashboard__sidebar-toggle above — otherwise the
+         button stays full-width and the hover highlight sits off-center. */
+      .dashboard.is-sidebar-collapsed & {
+        width: auto;
+        align-self: center;
+        justify-content: center;
+      }
+
+      @media (max-width: 600px) {
+        margin-top: 0;
+        margin-left: auto;
+        width: auto;
+      }
+    }
+
+    .dashboard__avatar--sidebar {
+      flex: none;
+    }
+
+    .dashboard__sidebar-profile-text {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      max-width: 10rem;
+      overflow: hidden;
+      opacity: 1;
+      transition:
+        max-width 280ms ease,
+        opacity 160ms ease;
+
+      .dashboard.is-sidebar-collapsed & {
+        max-width: 0;
+        opacity: 0;
+      }
+    }
+
+    .dashboard__sidebar-profile-name,
+    .dashboard__sidebar-profile-profession {
+      margin: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .dashboard__sidebar-profile-name {
+      font-size: 0.85rem;
+      font-weight: 700;
+      font-family: var(--heading-font-family);
+      color: var(--clr-dark);
+    }
+
+    .dashboard__sidebar-profile-profession {
+      font-size: 0.75rem;
+      color: var(--clr-dark);
+      opacity: 0.65;
     }
   }
 
@@ -216,40 +301,39 @@
         .dashboard__col--full {
           display: table-cell;
         }
+
+        /* Drops the Location/Date columns on mobile — the wrap's own
+           overflow-x: auto is still there as a fallback for the rest. */
+        @media (max-width: 600px) {
+          .dashboard__col--full {
+            display: none;
+          }
+        }
       }
     }
   }
 
-  /* Third column: theme toggle + avatar, stay put regardless of header/table height. */
+  /* Third column: theme toggle */
   .dashboard__rail {
-    display: flex;
-    flex-direction: row;
-    justify-content: start;
-    align-items: start;
-    gap: var(--space-2);
-    padding: var(--space-6) var(--space-3);
+    padding: var(--space-6) 0;
+    width: max-content;
 
     .dashboard__theme-toggle {
-      width: 3.1rem;
+      width: var(--space-12);
 
       svg {
         width: var(--space-5);
       }
     }
 
-    .dashboard__avatar {
-      width: 3.1rem;
-      font-size: 1.1rem;
-    }
-
-    @media (max-width: 960px) {
+    @media (max-width: 1024px) {
       grid-column: 1 / -1;
       flex-direction: row;
       justify-content: flex-end;
       padding: 0 var(--space-6) var(--space-4);
     }
 
-    @media (max-width: 720px) {
+    @media (max-width: 600px) {
       grid-column: 1;
     }
   }
