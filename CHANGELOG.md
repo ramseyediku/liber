@@ -26,8 +26,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   visits via `localStorage`, same as the theme preference.
 - Profile popover (name + profession) opened from the avatar button, on
   both the popup and full view.
-- Table cells for company/title/location truncate with an ellipsis and
-  expand in place on click, Excel-style, instead of just overflowing.
 - Apply-click sound effect (`src/assets/notif.mp3`, exposed via
   `web_accessible_resources`) for instant feedback when a job is detected,
   played from the content script rather than the confirmation notification
@@ -41,6 +39,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `Organization` JSON-LD, and the non-title segment of `document.title` —
   tried before falling back to "Unknown company", so the dedup key above is
   less likely to collide on an unidentified company.
+- Slide-in detail panel on the full-view dashboard for viewing/editing a
+  single application — opened by clicking its table row, it shows the job
+  title as its heading with status (a segmented control, highlighted in
+  accent), company/location/date, and a note field, plus Prev/Next buttons
+  that page across the whole job list (not just the current table page) and
+  a delete action. Stays in sync with storage changes and pagination via
+  the same `renderJobs()` pipeline the table already used.
+- `normalizeScrapedText()` in `content.js` — collapses whitespace and
+  title-cases scraped job title/company/location before they're saved,
+  instead of persisting the raw scraped strings.
+- `icon-close` symbol to the shared icon sprite (`src/shared/icons.svg`),
+  used by the new detail panel's close button.
 
 ### Changed
 - Dashboard greeting now shows the user's profession with their initial in
@@ -55,8 +65,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   style with a close animation.
 - Removed the full view's unwired sidebar "Settings" placeholder link — the
   profile popover is the only profile-related entry point for now.
+- Regenerated `icon48.png`/`icon128.png` — the previous regeneration had
+  actually produced JPEGs saved with a `.png` extension, at the wrong pixel
+  dimensions (34×31 and 80×71 instead of 48×48 and 128×128), which made
+  Chrome fall back to its default extension icon. Both are now proper PNGs
+  at their declared sizes, generated from `src/assets/logo.png`.
+- Full-view table rows and popup cards are now clickable (open the detail
+  panel / navigate to the full view), in addition to their existing inline
+  controls — those controls now stop click propagation so they don't also
+  trigger the row/card click.
+- Delete button's hover background changed from a near-invisible
+  transparent red to the same solid pastel red as the "Rejected" status
+  pill, and its corner radius now matches the rest of the UI instead of a
+  full circle.
+- Profile popover (opened from the collapsed sidebar's avatar) now anchors
+  to the sidebar panel's own right edge with a gap, instead of the shrunk,
+  centered avatar button — it no longer opens partially overlapping the
+  sidebar.
+- Onboarding confirmation screen simplified — dropped the circular
+  checkmark icon and widened/relaxed the confirmation copy.
+- Popup "View all applications" button's tooltip now matches its visible
+  label.
 
 ### Removed
 - Platform column from the dashboard and `platform` field from stored job
   records — the scraper still uses per-platform selectors to detect and
   scrape jobs, it just isn't persisted or displayed anymore.
+- Excel-style click-to-expand behavior on truncated table cells — they now
+  just truncate with an ellipsis and a `title` tooltip on hover.
+- Popup "Recent applications" section label.

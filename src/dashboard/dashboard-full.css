@@ -613,19 +613,15 @@
   box-sizing: border-box;
   resize: vertical;
   min-height: 7rem;
-  padding: var(--space-5) var(--space-4);
-  border: 0;
+  padding: var(--space-3);
+  border: none;
   border-radius: var(--border-radius);
-  background: var(--clr-accent-transparent);
+  background: var(--clr-light);
   color: var(--clr-dark);
   font: inherit;
   font-size: 0.9rem;
   line-height: 1.5;
-  outline: solid 2px transparent;
   caret-color: var(--clr-accent);
-  transition:
-    background-color 350ms ease-in-out,
-    scale 350ms ease-in-out;
 
   &::placeholder {
     color: var(--clr-dark);
@@ -633,14 +629,8 @@
   }
 
   &:focus,
-  &:hover,
-  &:active {
-    scale: 1.005;
-    background-color: var(--clr-accent-transparent);
+  &:hover {
     outline: none;
-    transition:
-      background-color 350ms ease-in-out,
-      scale 350ms ease-in-out;
   }
 }
 
