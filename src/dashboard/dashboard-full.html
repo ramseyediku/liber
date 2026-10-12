@@ -122,7 +122,7 @@
                 <th class="dashboard__col--title">Job Title</th>
                 <th class="dashboard__col--full">Location</th>
                 <th class="dashboard__col--full">Date Added</th>
-                <th>Status</th>
+                <th class="dashboard__col--status">Status</th>
                 <th>Notes</th>
                 <th></th>
               </tr>
@@ -200,6 +200,121 @@
         </button>
       </aside>
     </div>
+
+    <div class="dashboard__detail-overlay" id="detail-overlay" hidden></div>
+    <aside
+      class="dashboard__detail"
+      id="detail-panel"
+      aria-label="Application details"
+      hidden>
+      <div class="dashboard__detail-header">
+        <span class="dashboard__detail-position" id="detail-position"></span>
+        <div class="dashboard__detail-nav">
+          <button
+            type="button"
+            class="dashboard__detail-nav-btn"
+            id="detail-prev"
+            aria-label="Previous application">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round">
+              <use href="../shared/icons.svg#icon-chevron-left"></use>
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="dashboard__detail-nav-btn"
+            id="detail-next"
+            aria-label="Next application">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round">
+              <use href="../shared/icons.svg#icon-chevron-right"></use>
+            </svg>
+          </button>
+          <span class="dashboard__detail-divider" aria-hidden="true"></span>
+          <button
+            type="button"
+            class="dashboard__detail-nav-btn"
+            id="detail-close"
+            aria-label="Close details">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round">
+              <use href="../shared/icons.svg#icon-close"></use>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="dashboard__detail-body">
+        <h2 class="dashboard__detail-role" id="detail-role"></h2>
+
+        <div class="dashboard__detail-status-group">
+          <span class="dashboard__detail-status-label" id="detail-status-label"
+            >Status</span
+          >
+          <div
+            class="dashboard__detail-status"
+            id="detail-status"
+            role="radiogroup"
+            aria-labelledby="detail-status-label"></div>
+        </div>
+
+        <dl class="dashboard__detail-meta">
+          <dt>Company</dt>
+          <dd id="detail-company"></dd>
+          <dt>Location</dt>
+          <dd id="detail-location"></dd>
+          <dt>Date added</dt>
+          <dd id="detail-date"></dd>
+        </dl>
+
+        <label class="dashboard__detail-note-label">
+          <span>Note</span>
+          <textarea
+            id="detail-note"
+            placeholder="Interview dates, contacts, follow-ups…"
+            rows="5"></textarea>
+        </label>
+      </div>
+
+      <div class="dashboard__detail-footer">
+        <button
+          type="button"
+          class="dashboard__detail-delete"
+          id="detail-delete">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round">
+            <use href="../shared/icons.svg#icon-trash"></use>
+          </svg>
+          <span>Delete</span>
+        </button>
+        <button
+          type="button"
+          class="dashboard__detail-close-btn"
+          id="detail-footer-close">
+          Close
+        </button>
+      </div>
+    </aside>
 
     <!-- Cloned per-row by dashboard-core.js for each delete button. -->
     <template id="trash-icon-template">

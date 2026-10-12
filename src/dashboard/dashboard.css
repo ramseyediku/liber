@@ -27,11 +27,11 @@ body {
 .dashboard__brand {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-1);
 
   .logo {
     position: static;
-    width: 2.1rem;
+    width: var(--space-12);
   }
 
   .dashboard__label {
@@ -40,14 +40,6 @@ body {
     font-weight: 900;
     color: var(--clr-dark);
   }
-}
-
-.dashboard__section-label {
-  margin: 0;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--clr-dark);
-  opacity: 0.55;
 }
 
 /* One rounded surface housing all rows, divided by a border between them —
@@ -68,9 +60,15 @@ body {
   gap: var(--space-3);
   padding: var(--space-4);
   border-bottom: 1px solid var(--clr-grey);
+  cursor: pointer;
 
   &:last-child {
     border-bottom: none;
+  }
+
+  &:hover,
+  &:active {
+    background: var(--clr-row-hover);
   }
 }
 
@@ -102,8 +100,6 @@ body {
   white-space: nowrap;
 }
 
-/* Static badge here (a <span>, not the full view's dropdown <button>), so
-   it reuses the pill's color classes without the interactive affordances. */
 .dashboard__card .dashboard__status-pill {
   flex: none;
   width: auto;
@@ -125,13 +121,14 @@ body {
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  font-size: 0.85rem;
+  padding: var(--space-4) var(--space-5);
+  font-size: 0.9rem;
   background: var(--clr-accent);
   color: var(--clr-white);
+  margin-top: var(--space-2);
 
   svg {
-    width: 0.9rem;
+    width: 1.2rem;
     aspect-ratio: 1;
   }
 
@@ -141,8 +138,6 @@ body {
   }
 }
 
-/* Sits above the "View all applications" button and makes the 4-card cap
-   in renderJobs() visible instead of silently truncating the list. */
 .dashboard__jobs-count {
   margin: 0;
   padding: 0 var(--space-2);

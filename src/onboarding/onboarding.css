@@ -71,19 +71,11 @@ label {
 
   p {
     margin: 0;
+    max-width: 28rem;
     color: var(--clr-dark);
-    opacity: 0.7;
+    opacity: 0.85;
+    line-height: 1.5;
   }
-}
-
-.confirmation__icon {
-  display: grid;
-  place-content: center;
-  width: 3.5rem;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: var(--clr-accent);
-  color: var(--clr-white);
 }
 
 @keyframes confirmation-in {

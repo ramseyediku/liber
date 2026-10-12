@@ -78,42 +78,19 @@
   }
 }
 
-/* Truncates long cell text with an ellipsis; clicking it expands the cell
-   in place, Excel-style, overlapping whatever sits next to it instead of
-   resizing the column or the row. */
+/* Truncates long cell text with an ellipsis; the title attribute surfaces
+   the full text on hover. */
 .dashboard__cell-content {
   display: block;
-  /* max-width: 9rem; */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  cursor: pointer;
   width: 90%;
   color: var(--clr-dark);
 }
 
 .dashboard__col--company .dashboard__cell-content {
   font-weight: 600;
-}
-
-/* position: fixed (placed at the cell's own on-screen rect by
-   dashboard-core.js) instead of absolute inside the table — so expanding a
-   cell near the table's edge never grows the (overflow-x: auto) wrap's
-   scrollable area and shifts anything below it. */
-.dashboard__cell-content--expanded {
-  position: fixed;
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  width: max-content;
-  max-width: 26rem;
-  padding: var(--space-2) var(--space-4) var(--space-2);
-  background: var(--clr-white);
-  box-shadow: var(--box-shadow);
-  border-radius: var(--border-radius);
-  white-space: normal;
-  word-break: break-word;
-  cursor: pointer;
 }
 
 /* Status pill button that opens the floating .dashboard__status-menu
@@ -146,12 +123,17 @@
   }
 }
 
-/* Fixes the pill's width to the longest status label ("Interviewing") so
+/* Fixes the column's width to the longest status label ("Interviewing") so
    picking a shorter one from the dropdown doesn't shift the row/column
-   width around it. Scoped to the table only — the popup's static badge
-   (.dashboard__card .dashboard__status-pill) stays auto-width. */
-.dashboard__table .dashboard__status-pill {
+   width around it. The min-width lives on the header cell (the column's
+   width tracks its widest cell), not the pill, so the pill itself stays
+   auto-width and can shrink within the column instead of stretching to
+   fill it. */
+.dashboard__table th.dashboard__col--status {
   min-width: 9rem;
+}
+
+.dashboard__table .dashboard__status-pill {
   justify-content: flex-start;
 }
 
@@ -268,7 +250,7 @@
   padding: 0;
   display: grid;
   place-items: center;
-  border-radius: 50%;
+  border-radius: var(--border-radius);
   background: none;
   border: none;
   color: var(--clr-dark);
@@ -284,11 +266,11 @@
 
   &:hover,
   &:focus {
-    /* -text, not the pill background var — that one is now a pale pastel
-       meant to sit behind dark text, not stand alone as an icon color. */
+    /* Same text/background pairing as the rejected status pill — a
+       solid, visibly-lighter red rather than a near-invisible overlay. */
     color: var(--clr-rejected-text);
     opacity: 1;
-    background: var(--clr-rejected-transparent);
+    background: var(--clr-rejected);
     transform: none;
 
     /* Fill is inherited by the <use>-referenced trash icon's paths/lines
@@ -359,6 +341,11 @@
     width: 0.8em;
     aspect-ratio: 1;
     opacity: 0.6;
+  }
+
+  &:hover {
+    background: var(--clr-accent-transparent);
+    border-color: var(--clr-accent);
   }
 }
 

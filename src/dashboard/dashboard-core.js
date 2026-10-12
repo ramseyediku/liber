@@ -36,11 +36,32 @@ let paginationNext;
 let currentPage = 1;
 let totalPages = 1;
 let activePopover = null;
+
+// The slide-in detail drawer (full view only — see initDashboard). detailJobId
+// is the source of truth for which record is open; currentDetailJob is the
+// object last handed to renderDetailPanel, kept around so the note textarea's
+// input handler doesn't have to re-fetch/re-find it on every keystroke.
+let detailOverlay;
+let detailPanel;
+let detailPositionEl;
+let detailPrevBtn;
+let detailNextBtn;
+let detailCloseBtn;
+let detailFooterCloseBtn;
+let detailDeleteBtn;
+let detailRoleEl;
+let detailStatusGroup;
+let detailCompanyEl;
+let detailLocationEl;
+let detailDateEl;
+let detailNoteEl;
+let detailJobId = null;
+let currentDetailJob = null;
+let detailFocusReturn = null;
 // Defers a storage-triggered re-render until the popover closes, so it
 // doesn't get blown away out from under the user's cursor.
 let rerenderPending = false;
 let profileData = null;
-let expandedCell = null;
 let dashboardEl;
 // The button that opened the current popover — mousedown on it must not
 // count as an "outside" click, or the popover closes and immediately
@@ -81,16 +102,30 @@ function openProfilePopover(anchorBtn) {
   document.body.appendChild(popover);
 
   const anchorRect = anchorBtn.getBoundingClientRect();
+  // This popover only ever opens while the sidebar is collapsed (see the
+  // click handler in initDashboard), where the trigger shrinks to just the
+  // avatar, centered in the column — so anchoring to the button's own edge
+  // would plant the popover half over the sidebar. Anchor to the sidebar
+  // panel's own right edge instead, with a gap, so it always lands clear of
+  // it.
+  const sidebar = dashboardEl?.querySelector(".dashboard__aside");
+  const sidebarRight = sidebar
+    ? sidebar.getBoundingClientRect().right
+    : anchorRect.right;
   // offsetWidth/offsetHeight, unlike getBoundingClientRect(), ignore the
   // entrance animation's transform: scale(), which would otherwise shrink
   // the measured size and misplace the popover.
-  const left = Math.max(12, anchorRect.right - popover.offsetWidth);
+  const left = Math.min(
+    sidebarRight + 12,
+    window.innerWidth - popover.offsetWidth - 12,
+  );
   popover.style.left = `${left}px`;
 
   // The trigger sits pinned to the bottom of the sidebar, so the popover
   // would otherwise usually open straight off the bottom of the viewport —
   // flip it above the anchor when there isn't room below.
-  const openUp = anchorRect.bottom + popover.offsetHeight + 10 > window.innerHeight;
+  const openUp =
+    anchorRect.bottom + popover.offsetHeight + 10 > window.innerHeight;
   popover.style.top = openUp
     ? `${anchorRect.top - popover.offsetHeight - 10}px`
     : `${anchorRect.bottom + 10}px`;
@@ -153,7 +188,8 @@ function openStatusMenu(job, pill) {
   left = Math.max(12, left);
   menu.style.left = `${left}px`;
 
-  const openUp = anchorRect.bottom + menu.offsetHeight + 10 > window.innerHeight;
+  const openUp =
+    anchorRect.bottom + menu.offsetHeight + 10 > window.innerHeight;
   menu.style.top = openUp
     ? `${anchorRect.top - menu.offsetHeight - 6}px`
     : `${anchorRect.bottom + 6}px`;
@@ -184,7 +220,10 @@ function buildStatusCell(job) {
   pill.appendChild(label);
   pill.appendChild(chevronDownIconTemplate.content.cloneNode(true));
 
-  pill.addEventListener("click", () => openStatusMenu(job, pill));
+  pill.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openStatusMenu(job, pill);
+  });
 
   td.appendChild(pill);
   return td;
@@ -275,47 +314,169 @@ function openNotesPopover(job, anchorBtn) {
   document.addEventListener("keydown", handlePopoverKeydown, true);
 }
 
-function collapseExpandedCell() {
-  if (!expandedCell) return;
-  expandedCell.classList.remove("dashboard__cell-content--expanded");
-  expandedCell.style.top = "";
-  expandedCell.style.left = "";
-  expandedCell.style.minHeight = "";
-  expandedCell = null;
-  document.removeEventListener("mousedown", handleCellOutsideClick, true);
-  window.removeEventListener("scroll", collapseExpandedCell, true);
+function renderDetailStatus(job, jobs) {
+  detailStatusGroup.innerHTML = "";
+
+  Object.entries(STATUS_META).forEach(([value, meta]) => {
+    const selected = value === job.status;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.setAttribute("role", "radio");
+    btn.setAttribute("aria-checked", selected ? "true" : "false");
+    btn.className = "dashboard__detail-status-option";
+
+    const dot = document.createElement("span");
+    dot.className = `dashboard__status-dot dashboard__status-dot--${value}`;
+    btn.appendChild(dot);
+
+    const label = document.createElement("span");
+    label.textContent = meta.label;
+    btn.appendChild(label);
+
+    btn.addEventListener("click", async () => {
+      if (value === job.status) return;
+      job.status = value;
+      renderDetailPanel(job, jobs);
+      await updateJob(job.id, { status: value });
+    });
+
+    detailStatusGroup.appendChild(btn);
+  });
 }
 
-function handleCellOutsideClick(event) {
-  if (expandedCell && !expandedCell.contains(event.target)) {
-    collapseExpandedCell();
+function renderDetailPanel(job, jobs) {
+  if (!detailPanel) return;
+
+  currentDetailJob = job;
+  const index = jobs.findIndex((j) => j.id === job.id);
+
+  detailPositionEl.textContent = `Application ${index + 1} of ${jobs.length}`;
+  detailPrevBtn.disabled = index <= 0;
+  detailNextBtn.disabled = index === -1 || index >= jobs.length - 1;
+
+  detailRoleEl.textContent = job.jobTitle;
+  detailCompanyEl.textContent = job.company;
+
+  detailLocationEl.innerHTML = "";
+  if (/^https?:\/\//.test(job.location || "")) {
+    const link = document.createElement("a");
+    link.href = job.location;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = job.location;
+    detailLocationEl.appendChild(link);
+  } else {
+    detailLocationEl.textContent = job.location;
   }
+
+  detailDateEl.textContent = new Date(job.dateAdded).toLocaleDateString();
+  detailNoteEl.value = job.notes || "";
+
+  detailPanel.setAttribute(
+    "aria-label",
+    `Application details for ${job.company}`,
+  );
+  detailDeleteBtn.setAttribute(
+    "aria-label",
+    `Delete ${job.company} application`,
+  );
+
+  renderDetailStatus(job, jobs);
 }
 
-// position: fixed, placed at the cell's own on-screen rect — rather than
-// position: absolute inside the (overflow-x: auto) table-wrap — so an
-// expansion that reaches past the table's edge never grows the wrap's
-// scrollable area and shifts the pagination nav below it.
-function toggleCellExpand(span) {
-  if (expandedCell === span) {
-    collapseExpandedCell();
+// Re-syncs the open drawer (if any) whenever the job list is re-fetched —
+// shared by storage-change re-renders and pagination, so the drawer never
+// drifts from the table. Closes itself if its job was deleted elsewhere.
+function syncDetailPanel(jobs) {
+  if (!detailPanel || detailJobId === null) return;
+  const job = jobs.find((j) => j.id === detailJobId);
+  if (!job) {
+    closeDetail();
     return;
   }
-  collapseExpandedCell();
-  const rect = span.getBoundingClientRect();
-  span.style.top = `${rect.top}px`;
-  span.style.left = `${rect.left}px`;
-  span.style.minHeight = `${rect.height}px`;
-  span.classList.add("dashboard__cell-content--expanded");
-  expandedCell = span;
-  document.addEventListener("mousedown", handleCellOutsideClick, true);
-  // The fixed overlay doesn't track the cell on scroll, so close it rather
-  // than let it drift away from the row it belongs to.
-  window.addEventListener("scroll", collapseExpandedCell, true);
+  renderDetailPanel(job, jobs);
 }
 
-/* Truncates with an ellipsis; clicking the cell expands it in place,
-   Excel-style, instead of resizing the column. */
+function openDetail(job, jobs) {
+  if (!detailPanel) return;
+  closeActivePopover();
+  detailJobId = job.id;
+  renderDetailPanel(job, jobs);
+
+  detailFocusReturn = document.activeElement;
+  detailOverlay.classList.remove("dashboard__detail-overlay--closing");
+  detailPanel.classList.remove("dashboard__detail--closing");
+  detailOverlay.hidden = false;
+  detailPanel.hidden = false;
+  detailCloseBtn.focus();
+
+  document.addEventListener("keydown", handleDetailKeydown);
+}
+
+function closeDetail() {
+  detailJobId = null;
+  currentDetailJob = null;
+  if (!detailPanel || detailPanel.hidden) return;
+
+  document.removeEventListener("keydown", handleDetailKeydown);
+  detailOverlay.classList.add("dashboard__detail-overlay--closing");
+  detailPanel.classList.add("dashboard__detail--closing");
+
+  const finish = () => {
+    detailOverlay.hidden = true;
+    detailPanel.hidden = true;
+    detailOverlay.classList.remove("dashboard__detail-overlay--closing");
+    detailPanel.classList.remove("dashboard__detail--closing");
+  };
+  detailPanel.addEventListener("animationend", finish, { once: true });
+
+  if (detailFocusReturn && document.contains(detailFocusReturn)) {
+    detailFocusReturn.focus();
+  }
+  detailFocusReturn = null;
+}
+
+function handleDetailKeydown(event) {
+  if (event.key === "Escape") closeDetail();
+}
+
+async function navigateDetail(delta) {
+  if (detailJobId === null) return;
+  const jobs = await getAllJobs();
+  const index = jobs.findIndex((j) => j.id === detailJobId);
+  const target = jobs[index + delta];
+  if (!target) return;
+  detailJobId = target.id;
+  renderDetailPanel(target, jobs);
+}
+
+async function handleDetailDelete() {
+  if (!currentDetailJob) return;
+  const jobId = currentDetailJob.id;
+  const jobs = await getAllJobs();
+  const index = jobs.findIndex((j) => j.id === jobId);
+  const next = jobs[index + 1] || jobs[index - 1];
+
+  if (next) {
+    const remaining = jobs.filter((j) => j.id !== jobId);
+    detailJobId = next.id;
+    renderDetailPanel(next, remaining);
+  } else {
+    closeDetail();
+  }
+
+  await deleteJob(jobId);
+}
+
+function handleDetailNoteInput() {
+  if (!currentDetailJob) return;
+  const value = detailNoteEl.value;
+  currentDetailJob.notes = value;
+  updateJob(currentDetailJob.id, { notes: value.trim() });
+}
+
+/* Truncates with an ellipsis; the title attribute surfaces the full text
+   on hover. */
 function buildTruncatedCell(text, className) {
   const td = document.createElement("td");
   if (className) td.className = className;
@@ -324,10 +485,6 @@ function buildTruncatedCell(text, className) {
   span.className = "dashboard__cell-content";
   span.textContent = text;
   span.title = text;
-  span.addEventListener("click", (event) => {
-    event.stopPropagation();
-    toggleCellExpand(span);
-  });
 
   td.appendChild(span);
   return td;
@@ -343,13 +500,19 @@ function buildNotesCell(job) {
   const label = document.createElement("span");
   label.textContent = job.notes ? "View my note" : "Add a note";
   btn.appendChild(label);
-  btn.addEventListener("click", () => openNotesPopover(job, btn));
+  btn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openNotesPopover(job, btn);
+  });
   td.appendChild(btn);
   return td;
 }
 
-function buildRow(job) {
+// jobs is the full (unpaginated) list, passed through so the detail drawer
+// can report "Application X of Y" and page across the whole dataset.
+function buildRow(job, jobs) {
   const tr = document.createElement("tr");
+  tr.addEventListener("click", () => openDetail(job, jobs));
 
   tr.appendChild(buildTruncatedCell(job.company, "dashboard__col--company"));
   tr.appendChild(buildTruncatedCell(job.jobTitle, "dashboard__col--title"));
@@ -365,12 +528,14 @@ function buildRow(job) {
   tr.appendChild(buildNotesCell(job));
 
   const actionsTd = document.createElement("td");
+
   const deleteBtn = document.createElement("button");
   deleteBtn.type = "button";
   deleteBtn.className = "dashboard__delete";
   deleteBtn.setAttribute("aria-label", "Delete");
   deleteBtn.appendChild(trashIconTemplate.content.cloneNode(true));
-  deleteBtn.addEventListener("click", async () => {
+  deleteBtn.addEventListener("click", async (event) => {
+    event.stopPropagation();
     await deleteJob(job.id);
     tr.remove();
   });
@@ -390,9 +555,17 @@ function buildEmptyRow() {
   return tr;
 }
 
+// Only ever built in cardMode (the popup), so navigating to the full
+// dashboard here mirrors the "View all" button's own behavior exactly.
 function buildCard(job) {
   const card = document.createElement("div");
   card.className = "dashboard__card";
+  card.addEventListener("click", () => {
+    browser.tabs.create({
+      url: browser.runtime.getURL("src/dashboard/dashboard-full.html"),
+    });
+    window.close();
+  });
 
   const main = document.createElement("div");
   main.className = "dashboard__card-main";
@@ -463,7 +636,6 @@ function renderPagination() {
 
 async function renderJobs() {
   closeActivePopover();
-  collapseExpandedCell();
   const jobs = await getAllJobs();
 
   if (cardMode) {
@@ -473,10 +645,12 @@ async function renderJobs() {
       if (jobsCountEl) jobsCountEl.textContent = "";
       return;
     }
-    jobs.slice(0, cardLimit).forEach((job) => cardsList.appendChild(buildCard(job)));
+    jobs
+      .slice(0, cardLimit)
+      .forEach((job) => cardsList.appendChild(buildCard(job)));
     if (jobsCountEl) {
       const shown = Math.min(cardLimit, jobs.length);
-      jobsCountEl.textContent = `Showing ${shown} of ${jobs.length} application${jobs.length === 1 ? "" : "s"}`;
+      jobsCountEl.textContent = `Only showing ${shown} most recent application${jobs.length === 1 ? "" : "s"}`;
     }
     return;
   }
@@ -492,10 +666,11 @@ async function renderJobs() {
     const start = (currentPage - 1) * PAGE_SIZE;
     jobs
       .slice(start, start + PAGE_SIZE)
-      .forEach((job) => tbody.appendChild(buildRow(job)));
+      .forEach((job) => tbody.appendChild(buildRow(job, jobs)));
   }
 
   renderPagination();
+  syncDetailPanel(jobs);
 }
 
 // Only present on the full view — the popup has no room for a sidebar to
@@ -563,6 +738,34 @@ export function initDashboard(options = {}) {
     );
     checkIconTemplate = document.getElementById("check-icon-template");
     plusIconTemplate = document.getElementById("plus-icon-template");
+
+    detailOverlay = document.getElementById("detail-overlay");
+    detailPanel = document.getElementById("detail-panel");
+    detailPositionEl = document.getElementById("detail-position");
+    detailPrevBtn = document.getElementById("detail-prev");
+    detailNextBtn = document.getElementById("detail-next");
+    detailCloseBtn = document.getElementById("detail-close");
+    detailFooterCloseBtn = document.getElementById("detail-footer-close");
+    detailDeleteBtn = document.getElementById("detail-delete");
+    detailRoleEl = document.getElementById("detail-role");
+    detailStatusGroup = document.getElementById("detail-status");
+    detailCompanyEl = document.getElementById("detail-company");
+    detailLocationEl = document.getElementById("detail-location");
+    detailDateEl = document.getElementById("detail-date");
+    detailNoteEl = document.getElementById("detail-note");
+
+    if (detailOverlay) detailOverlay.addEventListener("click", closeDetail);
+    if (detailCloseBtn) detailCloseBtn.addEventListener("click", closeDetail);
+    if (detailFooterCloseBtn)
+      detailFooterCloseBtn.addEventListener("click", closeDetail);
+    if (detailPrevBtn)
+      detailPrevBtn.addEventListener("click", () => navigateDetail(-1));
+    if (detailNextBtn)
+      detailNextBtn.addEventListener("click", () => navigateDetail(1));
+    if (detailDeleteBtn)
+      detailDeleteBtn.addEventListener("click", handleDetailDelete);
+    if (detailNoteEl)
+      detailNoteEl.addEventListener("input", handleDetailNoteInput);
 
     paginationNav = document.getElementById("jobs-pagination");
     paginationPages = document.getElementById("pagination-pages");

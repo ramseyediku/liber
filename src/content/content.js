@@ -146,6 +146,22 @@
     return segments.length > 1 ? segments[1] : "";
   }
 
+  // Scraped fields come straight from arbitrary page markup, so they can
+  // carry tabs/newlines, doubled-up spaces, or stray leading/trailing
+  // whitespace picked up from the DOM. Collapses all of that down to single
+  // spaces, trims the ends, and capitalizes each word's first letter for a
+  // consistent display — same approach as titleCaseSlug() below, applied to
+  // real scraped text instead of a URL slug.
+  function normalizeScrapedText(value) {
+    return (value || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .split(" ")
+      .filter(Boolean)
+      .map((word) => word[0].toUpperCase() + word.slice(1))
+      .join(" ");
+  }
+
   function titleCaseSlug(slug) {
     return slug
       .replace(/[-_]+/g, " ")
@@ -261,9 +277,9 @@
 
     return {
       url: window.location.href,
-      jobTitle,
-      company,
-      location,
+      jobTitle: normalizeScrapedText(jobTitle),
+      company: normalizeScrapedText(company),
+      location: normalizeScrapedText(location),
       jobDescription: (
         cardScope?.querySelector('[class*="description"]')?.textContent ||
         jobPosting?.description ||

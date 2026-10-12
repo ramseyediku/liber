@@ -93,4 +93,9 @@
   <symbol id="icon-confirm-check" viewBox="0 0 24 24">
     <path d="M20 6 9 17l-5-5" />
   </symbol>
+
+  <symbol id="icon-close" viewBox="0 0 24 24">
+    <path d="M18 6 6 18" />
+    <path d="m6 6 12 12" />
+  </symbol>
 </svg>
