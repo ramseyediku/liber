@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Liber — Training Data</title>
+    <script src="../shared/theme.js"></script>
+    <link rel="icon" href="../assets/favicon/favicon.ico" />
+    <link rel="stylesheet" href="training-data.css" />
+  </head>
+  <body>
+    <div class="crawler">
+      <header class="crawler__header">
+        <div>
+          <h1>Training Data</h1>
+          <p class="crawler__subtitle">
+            Samples harvested by <code>jobCrawler</code>, stored locally
+            under <code>trainingSet</code>.
+          </p>
+        </div>
+        <button
+          type="button"
+          class="dashboard__theme-toggle"
+          id="theme-toggle"
+          aria-label="Switch to dark mode">
+          <svg
+            class="theme-icon-sun"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round">
+            <use href="../shared/icons.svg#icon-sun"></use>
+          </svg>
+          <svg
+            class="theme-icon-moon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round">
+            <use href="../shared/icons.svg#icon-moon"></use>
+          </svg>
+        </button>
+      </header>
+
+      <section class="crawler__stats" id="stats">
+        <div class="crawler__stat">
+          <span class="crawler__stat-value" id="stat-samples">0</span>
+          <span class="crawler__stat-label">Samples</span>
+        </div>
+        <div class="crawler__stat">
+          <span class="crawler__stat-value" id="stat-nodes">0</span>
+          <span class="crawler__stat-label">Candidate nodes</span>
+        </div>
+        <div class="crawler__stat">
+          <span class="crawler__stat-value" id="stat-sites">0</span>
+          <span class="crawler__stat-label">Sites</span>
+        </div>
+      </section>
+
+      <div class="crawler__toolbar">
+        <input
+          type="search"
+          id="search"
+          class="crawler__search"
+          placeholder="Filter by site, URL, or text…" />
+        <div class="crawler__actions">
+          <button type="button" class="crawler__btn" id="refresh">
+            Refresh
+          </button>
+          <button type="button" class="crawler__btn" id="export">
+            Export JSON
+          </button>
+          <button
+            type="button"
+            class="crawler__btn crawler__btn--danger"
+            id="clear">
+            Clear all
+          </button>
+        </div>
+      </div>
+
+      <div class="dashboard__table-wrap">
+        <table class="dashboard__table" id="table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Site</th>
+              <th>URL</th>
+              <th>Candidates</th>
+              <th>Preview</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <!-- rows injected by training-data.js -->
+          </tbody>
+        </table>
+      </div>
+
+      <nav class="dashboard__pagination" id="pagination" aria-label="Pagination">
+        <button
+          type="button"
+          class="dashboard__page-arrow"
+          id="page-prev"
+          aria-label="Previous page">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round">
+            <use href="../shared/icons.svg#icon-chevron-left"></use>
+          </svg>
+        </button>
+        <span class="crawler__page-label" id="page-label"></span>
+        <button
+          type="button"
+          class="dashboard__page-arrow"
+          id="page-next"
+          aria-label="Next page">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round">
+            <use href="../shared/icons.svg#icon-chevron-right"></use>
+          </svg>
+        </button>
+      </nav>
+    </div>
+
+    <script src="../../vendor/browser-polyfill.js"></script>
+    <script type="module" src="training-data.js"></script>
+  </body>
+</html>

@@ -427,6 +427,148 @@
     return titles.size;
   }
 
+  // ---------------------------------------------------------------------
+  // Training-data harvesting. Only ever triggered by job-crawler-
+  // background.js (src/crawler/) sending HARVEST_CARDS — never part of
+  // the real apply-flow capture above, and inert on every normal page
+  // view. Deliberately doesn't commit to one winning text per field the
+  // way findBySynonyms does above: forcing that choice here would just
+  // bake today's heuristic's own bias into the very data meant to
+  // evaluate (or replace) it. Instead it keeps every plausible candidate
+  // per card, with whatever band found it, as raw material for
+  // src/crawler/training-data.html.
+  // ---------------------------------------------------------------------
+
+  const MAX_CARDS = 40;
+  const MAX_CANDIDATES_PER_CARD = 15;
+  const MIN_CARD_GROUP_SIZE = 3;
+  const CARD_TEXT_MIN = 15;
+  const CARD_TEXT_MAX = 2000;
+
+  function classSignature(el) {
+    return Array.from(el.classList).sort().join(".");
+  }
+
+  function looksLikeCard(el) {
+    const text = (el.textContent || "").trim();
+    if (text.length < CARD_TEXT_MIN || text.length > CARD_TEXT_MAX) return false;
+    return !!el.querySelector("a, h1, h2, h3, h4");
+  }
+
+  // Groups every element on the page by tag+class signature and keeps
+  // whichever groups repeat often enough, and look card-shaped enough, to
+  // plausibly be job postings — same "repeated sibling shape" idea as
+  // sameCardShape/findCardScope above, but scanning the whole page
+  // instead of walking up from one clicked anchor (the crawler never
+  // clicks anything, so there's no anchor to start from).
+  function findJobCardGroups() {
+    const groups = new Map();
+    for (const el of document.querySelectorAll("body *")) {
+      if (!el.className || typeof el.className !== "string") continue;
+      const sig = classSignature(el);
+      if (!sig) continue;
+      const key = `${el.tagName}|${sig}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(el);
+    }
+
+    const qualifying = Array.from(groups.values())
+      .filter((group) => group.length >= MIN_CARD_GROUP_SIZE && looksLikeCard(group[0]))
+      .sort((a, b) => b.length - a.length);
+
+    // Only the richest couple of repeated groups, not every repeated
+    // widget on the page (badges, nav items, related-jobs rails) — real
+    // job listings are almost always the single largest repeated
+    // card-shaped group, occasionally two (e.g. a "similar jobs" rail).
+    return qualifying.slice(0, 2).flat().slice(0, MAX_CARDS);
+  }
+
+  // A true single-job detail page has no repeated card to find — the
+  // whole page *is* the one job, so it becomes the one card/sample.
+  function findFallbackCard() {
+    return document.querySelector('main, [role="main"], article') || document.body;
+  }
+
+  // Every plausible text-bearing descendant of one job card: microdata,
+  // headings, and the same synonym/stable-attribute bands findBySynonyms
+  // tries above — but every match is kept as a candidate instead of only
+  // the first one per field. matchedField/matchedMethod are hints toward
+  // which field a candidate might be, not a final label.
+  function getCardCandidates(root) {
+    const seen = new Set();
+    const candidates = [];
+
+    function consider(el, matchedField, matchedMethod) {
+      if (candidates.length >= MAX_CANDIDATES_PER_CARD) return;
+      const text = (el.textContent || "").replace(/\s+/g, " ").trim();
+      if (!text || text.length > FIELD_MAX_LENGTH.jobTitle * 2) return;
+      const key = text.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      candidates.push({ text, tag: el.tagName.toLowerCase(), matchedField, matchedMethod });
+    }
+
+    for (const field of Object.keys(MICRODATA_ITEMPROP)) {
+      for (const el of root.querySelectorAll(`[itemprop="${MICRODATA_ITEMPROP[field]}"]`)) {
+        consider(el, field, "microdata");
+      }
+    }
+
+    for (const el of root.querySelectorAll("h1, h2, h3")) {
+      consider(el, null, "heading");
+    }
+
+    const stableAttrs = ["data-testid", "data-test", "aria-label", "id", "class"];
+    for (const field of Object.keys(FIELD_SYNONYMS)) {
+      const { specific, broad } = FIELD_SYNONYMS[field];
+      for (const [words, method] of [
+        [specific, "synonym-specific"],
+        [broad, "synonym-broad"],
+      ]) {
+        const selector = synonymSelector([""], stableAttrs, words);
+        if (!selector) continue;
+        for (const el of root.querySelectorAll(selector)) {
+          consider(el, field, method);
+        }
+      }
+    }
+
+    return candidates;
+  }
+
+  function harvestCards() {
+    let cardEls = findJobCardGroups();
+    let fallbackSinglePage = false;
+    if (!cardEls.length) {
+      cardEls = [findFallbackCard()];
+      fallbackSinglePage = true;
+    }
+
+    const url = location.href;
+    const host = location.hostname;
+
+    const samples = cardEls
+      .map((cardEl, i) => ({
+        url,
+        host,
+        cardIndex: i,
+        fallbackSinglePage,
+        candidates: getCardCandidates(cardEl),
+      }))
+      .filter((s) => s.candidates.length > 0);
+
+    return { ok: true, samples };
+  }
+
+  browser.runtime.onMessage.addListener((message) => {
+    if (message?.type !== "HARVEST_CARDS") return;
+    try {
+      return Promise.resolve(harvestCards());
+    } catch (err) {
+      return Promise.resolve({ ok: false, error: String((err && err.message) || err) });
+    }
+  });
+
   // Manually performs whatever native default action event.preventDefault()
   // blocked below, once the capture message is confirmed sent — bypassing
   // the event system entirely (not a re-dispatched click), so nothing the

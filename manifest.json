@@ -8,7 +8,13 @@
     "48": "src/assets/icons/icon48.png",
     "128": "src/assets/icons/icon128.png"
   },
-  "permissions": ["storage", "activeTab", "scripting", "notifications"],
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "notifications",
+    "downloads"
+  ],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "src/background/background.js",

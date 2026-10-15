@@ -7,6 +7,12 @@ import { getFlow, setFlow, clearFlow } from "../shared/flowStorage.js";
 import { mergeSnapshot } from "../shared/fieldMerge.js";
 import { appendLog } from "../shared/logStorage.js";
 
+// Side-effect only: registers `self.jobCrawler` on this same service worker
+// so the training-data crawler is reachable from its console (see that
+// file's own header for usage). Dormant until someone calls it by hand —
+// nothing here invokes it automatically.
+import "../crawler/job-crawler-background.js";
+
 function notificationId(tabId) {
   return `liber-confirm-${tabId}`;
 }
