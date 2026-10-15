@@ -100,16 +100,6 @@
             <span class="dashboard__greeting-label">Tracking my applications for</span>
             <span class="dashboard__profession-pill">
               <span id="profession-label"></span>
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true">
-                <use href="../shared/icons.svg#icon-pen-line"></use>
-              </svg>
             </span>
           </p>
         </header>
@@ -169,6 +159,19 @@
             </svg>
           </button>
         </nav>
+
+        <section class="dashboard__logs" aria-label="Scrape activity log">
+          <div class="dashboard__logs-header">
+            <h2>Scrape Activity Log</h2>
+            <button type="button" class="dashboard__logs-clear" id="logs-clear">
+              Clear
+            </button>
+          </div>
+          <ol class="dashboard__logs-list" id="logs-list">
+            <!-- rows injected by dashboard-core.js, refreshed live as new
+                 scrape steps come in from content.js -->
+          </ol>
+        </section>
       </main>
 
       <aside class="dashboard__rail" aria-label="Quick actions">

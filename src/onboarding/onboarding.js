@@ -7,6 +7,13 @@ const form = document.getElementById("onboarding-form");
 const confirmation = document.getElementById("confirmation");
 const slogan = document.querySelector("p");
 
+function toTitleCase(text) {
+  return text
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
 async function prefillIfOnboarded() {
   const profile = await getProfile();
   if (!profile) return;
@@ -18,7 +25,7 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const name = form.elements.name.value.trim();
-  const profession = form.elements.profession.value.trim();
+  const profession = toTitleCase(form.elements.profession.value.trim());
   if (!name || !profession) return;
 
   await setProfile({ name, profession });

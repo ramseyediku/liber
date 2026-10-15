@@ -8,6 +8,7 @@ import {
   getProfile,
   STATUS_META,
 } from "../shared/storage.js";
+import { getLogs, clearLogs } from "../shared/logStorage.js";
 
 const EMPTY_MESSAGE =
   'No applications tracked yet. Click "Apply" on any job listing to start.';
@@ -35,6 +36,8 @@ let paginationPrev;
 let paginationNext;
 let currentPage = 1;
 let totalPages = 1;
+let logsList;
+let logsClearBtn;
 let activePopover = null;
 
 // The slide-in detail drawer (full view only — see initDashboard). detailJobId
@@ -634,6 +637,83 @@ function renderPagination() {
   }
 }
 
+// Pretty-printed (not one-line) — each entry's detail now always carries
+// jobInfoSoFar/multipleListingsDetected alongside whatever that step adds
+// (see content.js's logStep), so there's enough nested structure that
+// indentation is worth the extra height. Strings pass through as-is so a
+// plain message doesn't get wrapped in quotes.
+function formatLogDetail(detail) {
+  if (detail == null) return "";
+  if (typeof detail === "string") return detail;
+  try {
+    return JSON.stringify(detail, null, 2);
+  } catch {
+    return String(detail);
+  }
+}
+
+function formatLogPage(url) {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url || "";
+  }
+}
+
+function buildLogRow(entry) {
+  const li = document.createElement("li");
+  li.className = "dashboard__log-row";
+
+  const time = document.createElement("span");
+  time.className = "dashboard__log-time";
+  time.textContent = new Date(entry.timestamp).toLocaleTimeString();
+  li.appendChild(time);
+
+  const page = document.createElement("span");
+  page.className = "dashboard__log-page";
+  page.textContent = formatLogPage(entry.url);
+  page.title = entry.url || "";
+  li.appendChild(page);
+
+  const step = document.createElement("span");
+  step.className = "dashboard__log-step";
+  step.textContent = entry.step;
+  li.appendChild(step);
+
+  const detailText = formatLogDetail(entry.detail);
+  const detail = document.createElement("span");
+  detail.className = "dashboard__log-detail";
+  detail.textContent = detailText;
+  detail.title = detailText;
+  li.appendChild(detail);
+
+  return li;
+}
+
+// Full view only (see initDashboard) — logStorage's rolling buffer backs
+// this, and the storage.onChanged listener below keeps it live-refreshed
+// as new scrape steps come in from content.js, without a page reload.
+async function renderLogs() {
+  if (!logsList) return;
+  const logs = await getLogs();
+
+  logsList.innerHTML = "";
+  if (logs.length === 0) {
+    const li = document.createElement("li");
+    li.className = "dashboard__logs-empty";
+    li.textContent =
+      'No scrape activity yet. Click "Apply" on a job listing to see logs here.';
+    logsList.appendChild(li);
+    return;
+  }
+
+  // Newest first — getLogs() returns oldest-first (append order).
+  logs
+    .slice()
+    .reverse()
+    .forEach((entry) => logsList.appendChild(buildLogRow(entry)));
+}
+
 async function renderJobs() {
   closeActivePopover();
   const jobs = await getAllJobs();
@@ -785,6 +865,15 @@ export function initDashboard(options = {}) {
         renderJobs();
       });
     }
+
+    logsList = document.getElementById("logs-list");
+    logsClearBtn = document.getElementById("logs-clear");
+    if (logsClearBtn) {
+      logsClearBtn.addEventListener("click", async () => {
+        await clearLogs();
+        renderLogs();
+      });
+    }
   }
   avatar = document.getElementById("user-avatar");
   sidebarProfileTrigger = document.getElementById("sidebar-profile-trigger");
@@ -805,14 +894,18 @@ export function initDashboard(options = {}) {
 
   renderGreeting();
   renderJobs();
+  renderLogs();
 
-  // Re-render on storage changes from another context (e.g. a new job saved).
+  // Re-render on storage changes from another context (e.g. a new job
+  // saved, or a new scrape step logged by content.js/background.js).
   browser.storage.onChanged.addListener((changes) => {
-    if (!changes.liber_jobs) return;
-    if (activePopover) {
-      rerenderPending = true;
-    } else {
-      renderJobs();
+    if (changes.liber_jobs) {
+      if (activePopover) {
+        rerenderPending = true;
+      } else {
+        renderJobs();
+      }
     }
+    if (changes.liber_logs) renderLogs();
   });
 }

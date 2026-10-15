@@ -1,0 +1,8 @@
+{
+  "name": "liber",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test src/**/*.test.js"
+  }
+}
