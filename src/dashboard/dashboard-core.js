@@ -9,6 +9,7 @@ import {
   STATUS_META,
 } from "../shared/storage.js";
 import { getLogs, clearLogs } from "../shared/logStorage.js";
+import { getLlmStatus } from "../shared/llmStatus.js";
 
 const EMPTY_MESSAGE =
   'No applications tracked yet. Click "Apply" on any job listing to start.';
@@ -38,6 +39,7 @@ let currentPage = 1;
 let totalPages = 1;
 let logsList;
 let logsClearBtn;
+let llmStatusChip;
 let activePopover = null;
 
 // The slide-in detail drawer (full view only — see initDashboard). detailJobId
@@ -714,6 +716,36 @@ async function renderLogs() {
     .forEach((entry) => logsList.appendChild(buildLogRow(entry)));
 }
 
+// Mirrors onboarding.js's status text, rendered as a small chip here
+// instead — same liber_llm_status record (src/shared/llmStatus.js), shown
+// on both the popup and full view since both call initDashboard().
+function renderLlmStatusChip(status) {
+  if (!llmStatusChip) return;
+  if (!status || status.state === "idle") {
+    llmStatusChip.classList.add("hidden");
+    return;
+  }
+
+  llmStatusChip.className = "dashboard__llm-status";
+  const text =
+    status.state === "ready"
+      ? "AI model: Ready"
+      : status.state === "unsupported"
+        ? "AI model: Unsupported browser"
+        : status.state === "error"
+          ? "AI model: Failed to load"
+          : `AI model: Loading… ${status.progress || 0}%`;
+  // Kept short in the chip itself (little room here vs. onboarding's full
+  // paragraph) — the title tooltip carries the "this is one-time, Liber
+  // still works without it" framing for anyone who hovers.
+  llmStatusChip.title =
+    status.state === "loading"
+      ? "One-time on-device model download, running in the background. You can use Liber in the meantime — applications just won't be scraped automatically until this finishes."
+      : "";
+  llmStatusChip.classList.add(`dashboard__llm-status--${status.state}`);
+  llmStatusChip.textContent = text;
+}
+
 async function renderJobs() {
   closeActivePopover();
   const jobs = await getAllJobs();
@@ -878,6 +910,7 @@ export function initDashboard(options = {}) {
   avatar = document.getElementById("user-avatar");
   sidebarProfileTrigger = document.getElementById("sidebar-profile-trigger");
   dashboardEl = document.querySelector(".dashboard");
+  llmStatusChip = document.getElementById("llm-status-chip");
 
   // The popup has no avatar/profile trigger of its own anymore — only the
   // full view's sidebar profile section opens the popover, and only while
@@ -895,9 +928,18 @@ export function initDashboard(options = {}) {
   renderGreeting();
   renderJobs();
   renderLogs();
+  getLlmStatus().then(renderLlmStatusChip);
+  // Nudges a stalled/never-started load forward just by opening either
+  // dashboard page — warmup() is idempotent (a no-op if already loading
+  // or ready), but without this, a load that stalled because MV3 killed
+  // an idle service worker mid-download would otherwise never resume
+  // until some other trigger (install/startup/onboarding/an apply click)
+  // happened to fire again.
+  browser.runtime.sendMessage({ type: "LIBER_LLM_WARMUP" }).catch(() => {});
 
   // Re-render on storage changes from another context (e.g. a new job
-  // saved, or a new scrape step logged by content.js/background.js).
+  // saved, a new scrape step logged by content.js/background.js, or the
+  // on-device model's load progress advancing).
   browser.storage.onChanged.addListener((changes) => {
     if (changes.liber_jobs) {
       if (activePopover) {
@@ -907,5 +949,6 @@ export function initDashboard(options = {}) {
       }
     }
     if (changes.liber_logs) renderLogs();
+    if (changes.liber_llm_status) renderLlmStatusChip(changes.liber_llm_status.newValue);
   });
 }

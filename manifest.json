@@ -10,9 +10,11 @@
   },
   "permissions": ["storage", "activeTab", "scripting", "notifications"],
   "host_permissions": ["<all_urls>"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
   "background": {
     "service_worker": "src/background/background.js",
-    "scripts": ["src/background/background.js"],
     "type": "module"
   },
   "action": {

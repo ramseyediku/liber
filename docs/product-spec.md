@@ -31,8 +31,11 @@ an active job search.
 ## Feature set (current, v0.1)
 
 - Automatic apply-click detection on any site (heuristic keyword matching)
-- Platform-specific scraping for LinkedIn and Indeed; generic fallback for
-  everything else
+- Site-agnostic scraping via an on-device LLM (WebLLM, running fully
+  in-browser — no data leaves the device) — works across sites without a
+  per-site selector table, trading some accuracy for coverage. A first
+  step toward the trained classifier planned for v2/v3 (see roadmap.md).
+  Currently Chrome/Chromium-only (requires WebGPU).
 - Save-confirmation via native browser notification
 - Dashboard: list, edit status (Applied / Interviewing / Rejected / Ghosted),
   edit notes inline, delete
