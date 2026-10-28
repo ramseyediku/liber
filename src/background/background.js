@@ -1,47 +1,131 @@
-// Central coordinator: tracks a per-tab apply flow (pending, captured,
-// saved) in browser.storage.session, and opens onboarding on first install.
-// Also hosts the on-device LLM engine (src/shared/llmEngine.js) that turns
-// a flow step's raw scope text into {jobTitle, company, location} — the
-// only context any of this runs in, see llmEngine.js's header for why.
+// Central coordinator: on-install onboarding, and talks to the on-device
+// LLM (now hosted in an Offscreen Document + Worker — see
+// src/shared/llmEngine.js's header for why — via that same module's
+// unchanged exported API).
 //
-// content.js no longer blocks or scopes anything at click time — it fires
-// an immediate, empty-scopeText LIBER_FLOW_STEP the instant a trigger is
-// clicked (purely to create/touch this tab's flow — see handleFlowStep's
-// "no snapshot" branches), then separately sends a real scopeText once a
-// modal appears or the page settles. That arming message is what lets this
-// file's tabs.onUpdated listener recognize a tab as "mid-flow" even after a
-// real navigation destroys the content script that armed it, or a click
-// opens a brand-new tab whose own content script has no idea a click
-// happened — see that listener below for the other half of this.
+// Single-click, consent-first protocol (content.js's header has the
+// content-script half): a trigger click captures one snapshot scoped to
+// the specific job and asks the user "Save this job to your tracker?"
+// entirely in-page, before anything here is ever contacted. Only on "yes"
+// does content.js send LIBER_SAVE_REQUESTED — handleSaveRequested below
+// resolves it (JSON-LD first, the LLM only if still incomplete), saves via
+// storage.js's existing dedup, and reports the real outcome back. There is
+// no persisted per-tab state and no multi-step tracking — each accepted
+// click is one bounded async chain that runs to completion independent of
+// tab lifecycle. See docs/roadmap.md's "Capture flow rewrite: single-click,
+// consent-first" for the design history this replaces.
 
 import "../../vendor/browser-polyfill.js";
-import {
-  addJob,
-  updateJob,
-  isOnboarded,
-  hasNotifiedLlmReady,
-  markLlmReadyNotified,
-} from "../shared/storage.js";
-import { getFlow, setFlow, clearFlow, copyFlow } from "../shared/flowStorage.js";
+import { addJob, isOnboarded } from "../shared/storage.js";
 import { mergeSnapshot } from "../shared/fieldMerge.js";
 import { appendLog } from "../shared/logStorage.js";
-import { warmup, extractJobFields, LlmNotReadyError } from "../shared/llmEngine.js";
-import { getLlmStatus } from "../shared/llmStatus.js";
-
-// A flow is only ever worth cross-navigation/cross-tab scanning while it's
-// genuinely active — this bounds how long after the last real activity a
-// tabs.onUpdated load-complete is still treated as "part of that flow",
-// rather than, say, the user closing the application tab and browsing
-// elsewhere in a tab that happens to share an opener from hours ago.
-const RECENT_FLOW_WINDOW_MS = 2 * 60 * 1000;
+import {
+  warmup,
+  extractJobFields,
+  unloadEngine,
+  LlmNotReadyError,
+} from "../shared/llmEngine.js";
+import { getLlmStatus, setLlmStatus } from "../shared/llmStatus.js";
+import { normalizeScrapedText } from "../shared/textNormalize.js";
 
 function isComplete(snapshot) {
   return !!(snapshot && snapshot.jobTitle && snapshot.company && snapshot.location);
 }
 
-// Avoids spamming a "not ready" notification on every single click while a
-// multi-step apply flow is in progress and the model is still downloading —
-// one per tab is enough to tell the user what's going on.
+function normalizeSnapshot(snapshot) {
+  return {
+    jobTitle: normalizeScrapedText(snapshot.jobTitle),
+    company: normalizeScrapedText(snapshot.company),
+    location: normalizeScrapedText(snapshot.location),
+  };
+}
+
+// Caches extractJobFields' output by exact page URL, bounded to the most
+// recently-used MAX_URL_CACHE_ENTRIES entries — the same job URL can
+// recur across unrelated clicks (e.g. a validation error sends the user
+// back to retry), so a second request for that URL still skips the LLM.
+const MAX_URL_CACHE_ENTRIES = 50;
+const urlExtractionCache = new Map();
+
+function cacheExtraction(url, snapshot) {
+  urlExtractionCache.set(url, snapshot);
+  if (urlExtractionCache.size > MAX_URL_CACHE_ENTRIES) {
+    urlExtractionCache.delete(urlExtractionCache.keys().next().value);
+  }
+}
+
+// How long the LLM can sit idle (no extraction call) before
+// liber-llm-idle-check unloads it — see that alarm listener further down.
+// Mostly a backstop: maybeUnloadEngineAfter below already unloads
+// immediately after every request, so this mainly covers a model preloaded
+// (onboarding.js's page-load preload) but never actually used for an
+// extraction.
+const LLM_IDLE_UNLOAD_MS = 5 * 60 * 1000;
+let lastLlmActivityAt = 0;
+
+// Tabs currently in the "extracting" phase (model loading and/or inference
+// running) — used two ways: deciding which tabs should receive a live
+// progress push when liber_llm_status changes (below), and as the
+// safe-unload check just below (so one tab's finished request doesn't yank
+// the engine out from under a different tab's still-in-flight one).
+const extractingTabs = new Set();
+
+async function maybeUnloadEngineAfter(tabId) {
+  for (const id of extractingTabs) {
+    if (id !== tabId) return; // another tab still has a request in flight
+  }
+  await unloadEngine();
+  lastLlmActivityAt = 0;
+}
+
+// Tracks an unanswered "Save this job to your tracker?" prompt per tab —
+// content.js reports one the instant it's shown (LIBER_CONSENT_PENDING) and
+// clears it the instant the user answers (LIBER_CONSENT_RESOLVED). This is
+// what lets an unanswered prompt follow the user if this tab redirects, or
+// the click opened a new tab (e.g. an ATS that routes the real application
+// through an intermediate domain, or opens it in a fresh tab), instead of
+// just being lost to the old page's teardown — see resolvePendingConsentFor
+// below and content.js's beginConsentFlow.
+const pendingConsentByTab = new Map();
+
+// How long an unanswered prompt stays eligible to be resumed elsewhere —
+// unverified against real redirect/new-tab timing, same "accepted risk,
+// bounded" spirit as this project's other heuristic windows. Long enough to
+// survive a slow redirect, short enough that a prompt the user actually
+// ignored and wandered off from doesn't resurface in an unrelated later tab.
+const PENDING_CONSENT_TTL_MS = 2 * 60 * 1000;
+
+async function resolvePendingConsentFor(tabId) {
+  let sourceTabId = tabId;
+  let entry = pendingConsentByTab.get(sourceTabId);
+
+  if (!entry) {
+    // Not pending for this exact tab — check whether this tab was opened
+    // (new tab/window) from one that still has an unanswered prompt. Covers
+    // an ATS that opens the real application in a new tab rather than
+    // redirecting in place. openerTabId isn't always set (e.g. cross-origin
+    // without a direct opener relationship) — a known gap, not a bug.
+    try {
+      const tab = await browser.tabs.get(tabId);
+      if (tab.openerTabId != null) {
+        sourceTabId = tab.openerTabId;
+        entry = pendingConsentByTab.get(sourceTabId);
+      }
+    } catch {
+      // Tab gone/inaccessible — nothing to resume.
+    }
+  }
+
+  if (!entry) return null;
+  pendingConsentByTab.delete(sourceTabId); // claimed — handed to whichever page asks first, only once
+  if (Date.now() - entry.capturedAt > PENDING_CONSENT_TTL_MS) return null;
+
+  return { url: entry.url, scopeText: entry.scopeText, structuredSnapshot: entry.structuredSnapshot };
+}
+
+// Avoids spamming a "not ready" notification if several clicks land while
+// the model is still downloading — one per tab is enough to tell the user
+// what's going on.
 const notReadyNotifiedTabs = new Set();
 
 function notReadyNotificationId(tabId) {
@@ -54,10 +138,10 @@ async function showNotReadyPrompt(tabId, status) {
 
   const detail =
     status.state === "unsupported"
-      ? "your browser/device doesn't support the on-device model (WebGPU required)."
+      ? "this device can't finish setting up the job tracker's automatic scraping."
       : status.state === "error"
-        ? `the on-device model failed to load (${status.message || "unknown error"}).`
-        : `the on-device model is still loading${status.progress ? ` (${status.progress}%)` : ""}.`;
+        ? "the job tracker's setup failed partway through."
+        : `the job tracker is still finishing setup${status.progress ? ` (${status.progress}%)` : ""}.`;
 
   await browser.notifications.create(notReadyNotificationId(tabId), {
     type: "basic",
@@ -67,61 +151,22 @@ async function showNotReadyPrompt(tabId, status) {
   });
 }
 
-// A load's eventual success never triggers more than one of these, even
-// though warmup() is reached from several places below (onInstalled,
-// onStartup, LIBER_LLM_WARMUP) and may already be in flight/settled by the
-// time any one of them runs — see warmupAndNotify().
-let readyNotificationAttached = false;
+// Fallback for when the result can't be delivered to the tab's own
+// on-page popup (tab closed, or navigated to a page content.js never runs
+// on) — a plain report, not a yes/no ask, since consent already happened
+// in-page before this was ever triggered.
+const OUTCOME_NOTIFICATION_TEXT = {
+  saved: "Job saved. You can check it in your table.",
+  duplicate: "This job's already in your tracker.",
+  failed: "Couldn't save this one — try again shortly.",
+};
 
-async function notifyWhenReady(enginePromise) {
-  if (readyNotificationAttached) return;
-  readyNotificationAttached = true;
-
-  enginePromise
-    .then(async () => {
-      // The persistent (storage.local, not session) flag is what actually
-      // makes this "once ever," not just "once per service-worker
-      // lifetime" — a cache-warm reload after a later SW restart also
-      // resolves this same promise, and shouldn't re-notify.
-      if (await hasNotifiedLlmReady()) return;
-      await markLlmReadyNotified();
-      await browser.notifications.create("liber-llm-ready", {
-        type: "basic",
-        iconUrl: browser.runtime.getURL("src/assets/icons/icon128.png"),
-        title: "Liber's on-device AI is ready",
-        message:
-          "The one-time setup download is done — click Apply on any job posting and Liber will scrape it automatically from now on.",
-      });
-    })
-    .catch(() => {}); // a failed load has nothing to notify about here
-}
-
-// Every onInstalled/onStartup/LIBER_LLM_WARMUP call site uses this instead
-// of calling llmEngine's warmup() directly, so the "ready" notification
-// above gets attached exactly once rather than duplicated across whichever
-// of those happens to fire first.
-function warmupAndNotify() {
-  const promise = warmup();
-  notifyWhenReady(promise);
-  return promise;
-}
-
-function notificationId(tabId) {
-  return `liber-confirm-${tabId}`;
-}
-
-function notificationMessage(snapshot) {
-  return `${snapshot.jobTitle || "Unknown role"} at ${snapshot.company || "unknown company"}`;
-}
-
-async function showSavePrompt(tabId, snapshot) {
-  await browser.notifications.create(notificationId(tabId), {
+async function showSaveResultNotification(tabId, outcome) {
+  await browser.notifications.create(`liber-result-${tabId}-${Date.now()}`, {
     type: "basic",
     iconUrl: browser.runtime.getURL("src/assets/icons/icon128.png"),
-    title: "Save this job application?",
-    message: notificationMessage(snapshot),
-    buttons: [{ title: "Save to Liber" }, { title: "Dismiss" }],
-    requireInteraction: true,
+    title: "Liber",
+    message: OUTCOME_NOTIFICATION_TEXT[outcome] || OUTCOME_NOTIFICATION_TEXT.failed,
   });
 }
 
@@ -131,227 +176,191 @@ browser.runtime.onInstalled.addListener(async (details) => {
       url: browser.runtime.getURL("src/onboarding/onboarding.html"),
     });
   }
-  warmupAndNotify(); // fire-and-forget — starts the model download/load immediately
+  // No warmup() call here — onboarding.js sends LIBER_LLM_WARMUP
+  // unconditionally as soon as its own page loads (covering the
+  // first-install case right after the tabs.create() above). The
+  // per-application flow never preloads speculatively at all now — it
+  // only ever calls warmup() (via extractJobFields) once the user has
+  // actually accepted a "Save this job to your tracker?" prompt.
 });
 
-// Covers the "already installed, just reopened the browser" case —
-// onInstalled above only fires on install/update, not every browser start,
-// and a service worker's module scope (and so llmEngine's singleton
-// promise) doesn't survive a full browser restart.
-browser.runtime.onStartup.addListener(() => {
-  warmupAndNotify();
+// alarms, unlike setTimeout, survives MV3 service-worker suspension/restart
+// — this is what actually drives the idle-unload check below. create()
+// with an existing name just resets its schedule, so calling this on every
+// service-worker startup (not just once-ever) is the intended pattern.
+browser.alarms.create("liber-llm-idle-check", { periodInMinutes: 2 });
+
+browser.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name !== "liber-llm-idle-check") return;
+  if (!lastLlmActivityAt) return; // nothing loaded (or used) this service-worker lifetime
+  if (Date.now() - lastLlmActivityAt < LLM_IDLE_UNLOAD_MS) return;
+  await unloadEngine();
+  lastLlmActivityAt = 0;
 });
 
-// The single funnel point for every LIBER_FLOW_STEP, whichever of three
-// places it came from: content.js's click-time arming/scan messages
-// (onMessage below), or background.js's own cross-navigation/cross-tab
-// scans (the tabs.onUpdated listener further down). scopeText is raw
-// bounded page text, not a ready-made snapshot — extraction happens here,
-// since this is the one context the LLM engine actually lives in (see
-// llmEngine.js's header).
-async function handleFlowStep(tabId, scopeText) {
-  // Empty scope text (content.js's arming message, or a genuine "nothing
-  // found nearby") is a real "falsy snapshot" signal distinct from "model
-  // not ready" — handled before touching the engine at all.
-  let snapshot = null;
-  if (scopeText) {
-    try {
-      snapshot = await extractJobFields(scopeText);
-    } catch (err) {
-      if (err instanceof LlmNotReadyError) {
-        await showNotReadyPrompt(tabId, err.status || (await getLlmStatus()));
-        return;
-      }
-      throw err;
-    }
-  }
-
-  const flow = await getFlow(tabId);
-
-  if (!flow) {
-    // Nothing tracked for this tab yet — this is what starts a flow
-    // (typically the click-time arming message, which always has no
-    // snapshot). content.js no longer distinguishes "starting" from
-    // "continuing" by which word was clicked; this tab's actual flow state
-    // is the only reliable signal for that, so the decision lives here.
-    if (!isComplete(snapshot)) {
-      // Still missing at least one field (most commonly: nothing at all
-      // yet) — note a flow may be starting, but there's nothing to prompt
-      // on yet. A snapshot with some, but not all, fields is still stored
-      // so later refinements have something to merge into.
-      await setFlow(tabId, {
-        status: "pending",
-        snapshot,
-        savedJobId: null,
-        dismissed: false,
-        createdAt: Date.now(),
-      });
-      return;
-    }
-
-    await setFlow(tabId, {
-      status: "captured",
-      snapshot,
-      savedJobId: null,
-      dismissed: false,
-      createdAt: Date.now(),
-    });
-    await showSavePrompt(tabId, snapshot);
-    return;
-  }
-
-  // A flow already exists for this tab — refine it instead of starting a
-  // new one, even if this click happened to say "Apply" again (e.g. a
-  // second "Easy Apply" button inside the same application).
-  if (!snapshot) {
-    // Nothing new to merge — still touch the flow so its lastUpdatedAt
-    // reflects this activity. Matters for the arming message in
-    // particular: without this, an arming-only click on an already-started
-    // flow would never refresh the timestamp the tabs.onUpdated listener
-    // below uses to decide whether a flow is still "recent enough" to be
-    // worth scanning.
-    await setFlow(tabId, flow);
-    return;
-  }
-
-  const { merged, conflicts } = mergeSnapshot(flow.snapshot, snapshot);
-  if (conflicts.length) {
-    console.warn(
-      "Liber: field conflict on flow refine",
-      conflicts,
-      flow.snapshot,
-      snapshot,
-    );
-  }
-
-  if (flow.status === "pending" && isComplete(merged)) {
-    // All three fields are now known — show the prompt now, at the end of
-    // the flow, rather than as soon as the first field was found.
-    await setFlow(tabId, { ...flow, status: "captured", snapshot: merged });
-    await showSavePrompt(tabId, merged);
-    return;
-  }
-
-  await setFlow(tabId, { ...flow, snapshot: merged });
-
-  if (flow.savedJobId) {
-    // Already saved — update that row instead of prompting again.
-    await updateJob(flow.savedJobId, merged);
-  } else if (flow.status === "captured" && !flow.dismissed) {
-    await browser.notifications
-      .update(notificationId(tabId), { message: notificationMessage(merged) })
-      .catch(() => {});
-  }
-  // If still pending (fields incomplete) or dismissed and not saved:
-  // snapshot is updated silently above, no further UI action.
-}
-
-// Self-contained — chrome.scripting.executeScript's injected `func` can't
-// import a module, so this intentionally duplicates a small slice of
-// content.js's findVisibleDialog/resolvePageScope. Deliberately narrower
-// than that version: no overlay-heuristic fallback, no
-// countVisibleJobTitles, no MutationObserver/settle-window, since a one-shot
-// scan right after the tab's "complete" status already waited for the page
-// to load. If you change the scope-resolution logic here, check whether
-// content.js's copy needs the same change, and vice versa.
-function liberScanInjectedPage() {
-  function isVisible(el) {
-    if (!el.offsetParent) return false;
-    const rect = el.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0;
-  }
-  function findVisibleDialog() {
-    return (
-      Array.from(document.querySelectorAll('[role="dialog"], [aria-modal="true"], dialog')).find(
-        isVisible,
-      ) || null
-    );
-  }
-  const scope =
-    findVisibleDialog() ||
-    document.querySelector('form, main, [role="main"], article') ||
-    document.body;
-  const text = (scope.innerText || "").replace(/\s+/g, " ").trim().slice(0, 4000);
-  return { text, url: location.href };
-}
-
-// Covers the two cases content.js's own in-page observer structurally
-// cannot: a real same-tab page navigation (content.js's instance on the
-// pre-navigation page is gone by the time the new page loads) and a
-// brand-new tab (whose content.js has no idea a click happened anywhere).
-// Both are driven off the same signal: a tab recently armed/updated by
-// handleFlowStep (see content.js's header for why the arming message
-// exists). tab.openerTabId being available right here is what lets one
-// listener cover both — no separate tabs.onCreated listener/race needed.
-browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  if (changeInfo.status !== "complete") return;
-
-  let flow = await getFlow(tabId);
-
-  // Brand-new tab opened from a tab with a recent flow (e.g. an ATS
-  // redirect to a separate company/Greenhouse/Lever domain) — inherit it.
-  if (!flow && tab.openerTabId != null) {
-    const openerFlow = await getFlow(tab.openerTabId);
-    if (openerFlow && Date.now() - openerFlow.lastUpdatedAt <= RECENT_FLOW_WINDOW_MS) {
-      flow = await copyFlow(tab.openerTabId, tabId);
-      await appendLog({
-        tabId,
-        url: tab.url,
-        step: "flow linked from opener tab",
-        detail: { openerTabId: tab.openerTabId },
-      });
-    }
-  }
-
-  if (!flow) return;
-  if (Date.now() - flow.lastUpdatedAt > RECENT_FLOW_WINDOW_MS) return; // stale — user wandered off
-  if (flow.lastScannedUrl === tab.url) return; // already scanned this exact page
-
-  let scanResult;
+async function pushExtractionStatus(tabId, payload) {
   try {
-    const [{ result }] = await browser.scripting.executeScript({
-      target: { tabId },
-      func: liberScanInjectedPage,
-    });
-    scanResult = result;
+    await browser.tabs.sendMessage(tabId, { type: "LIBER_EXTRACTION_STATUS", ...payload });
+    return true;
   } catch {
-    return; // restricted page (chrome://, store, pdf viewer, etc.)
+    return false; // no content script listening (tab closed, or a page content.js never runs on)
   }
+}
 
-  await setFlow(tabId, { ...flow, lastScannedUrl: tab.url });
-  await appendLog({
-    tabId,
-    url: tab.url,
-    step: "cross-navigation scan",
-    detail: { textLength: scanResult?.text?.length ?? 0 },
-  });
-  await handleFlowStep(tabId, scanResult?.text || "");
+// Relays live model-loading progress to whichever tab(s) are currently
+// waiting on a request — background.js is already in the one context that
+// reads liber_llm_status (llmEngine.js's offscreen-hosted progress
+// callback writes it), so this is a plain storage.onChanged read, not a
+// new broadcast mechanism. Once the model's actually ready and inference
+// is running, no further status writes happen, so the "working" popup's
+// bar just holds at whatever percent it reached — acceptable, inference is
+// normally quick.
+browser.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "session" || !changes.liber_llm_status) return;
+  if (extractingTabs.size === 0) return;
+  const status = changes.liber_llm_status.newValue;
+  for (const tabId of extractingTabs) {
+    pushExtractionStatus(tabId, { phase: "working", progress: status?.progress || 0 });
+  }
 });
 
-browser.runtime.onMessage.addListener(async (message, sender) => {
+// LIBER_SAVE_REQUESTED handler — content.js sent this because the user
+// answered "yes" to the in-page consent prompt. This is the one place
+// extraction (and saving) actually happens; nothing before this point ever
+// touches the model.
+async function handleSaveRequested(tabId, { url, scopeText, structuredSnapshot }) {
+  extractingTabs.add(tabId);
+  pushExtractionStatus(tabId, { phase: "working", progress: 0 });
+
+  let outcome;
+  try {
+    let merged = structuredSnapshot || { jobTitle: "", company: "", location: "" };
+
+    if (!isComplete(merged) && scopeText) {
+      let llmSnapshot;
+      if (urlExtractionCache.has(url)) {
+        llmSnapshot = urlExtractionCache.get(url);
+      } else {
+        lastLlmActivityAt = Date.now();
+        llmSnapshot = await extractJobFields(scopeText);
+        cacheExtraction(url, llmSnapshot);
+      }
+      // Structured data is free and deterministic, so a partial JSON-LD
+      // read takes priority over the LLM's guess for whichever fields it
+      // did find — mergeSnapshot's "more detailed wins" logic
+      // (fieldMerge.js) handles the rest.
+      merged = structuredSnapshot ? mergeSnapshot(structuredSnapshot, llmSnapshot).merged : llmSnapshot;
+    }
+
+    merged = normalizeSnapshot(merged);
+    extractingTabs.delete(tabId);
+
+    const savedJob = await addJob(merged); // null => duplicate, existing composite-key dedup
+    outcome = savedJob ? "saved" : "duplicate";
+    await appendLog({ tabId, url, step: `save requested — ${outcome}`, detail: merged });
+  } catch (err) {
+    extractingTabs.delete(tabId);
+    if (err instanceof LlmNotReadyError) {
+      await showNotReadyPrompt(tabId, err.status || (await getLlmStatus()));
+    }
+    await appendLog({ tabId, url, step: "save requested — failed", detail: { message: err?.message } });
+    outcome = "failed";
+  }
+
+  const delivered = await pushExtractionStatus(tabId, { phase: "done", outcome });
+  if (!delivered) {
+    // No content script to show the result to (tab closed, or navigated to
+    // a restricted page) — fall back to a plain OS notification.
+    await showSaveResultNotification(tabId, outcome);
+  }
+
+  maybeUnloadEngineAfter(tabId).catch(() => {});
+}
+
+browser.runtime.onMessage.addListener((message, sender) => {
   const tabId = sender.tab?.id;
 
+  // Deliberately not `async (message, sender) => {...}` — an async
+  // function always returns a Promise, even for a message type none of
+  // the branches below match. runtime.sendMessage broadcasts to every
+  // listener across every extension context (including this one), so this
+  // listener also receives the LIBER_OFFSCREEN_* messages llmEngine.js
+  // sends to offscreen.js. If it always returned a Promise, it would race
+  // offscreen.js's real (slower) response with an immediate `undefined`
+  // one and usually win, silently breaking warmup()/extractJobFields() —
+  // only the branches that actually handle a message return a Promise;
+  // everything else falls through to an implicit, synchronous `undefined`
+  // return, ceding the response to whichever listener should answer it.
   if (message.type === "LIBER_LLM_WARMUP") {
-    warmupAndNotify(); // fire-and-forget, sent by onboarding.js/dashboard-core.js
+    // Sent by onboarding.js unconditionally on page load. warmup() is
+    // fire-and-forget; the status is still returned synchronously in case
+    // a caller wants it (onboarding.js's setup screen does).
+    // Errors (e.g. no WebGPU on this device) surface through liber_llm_status,
+    // which onboarding.js already watches via storage.onChanged — nothing
+    // here needs to see the rejection, but it must still be caught, or an
+    // LlmNotReadyError from callOffscreen becomes an unhandled rejection.
+    warmup().catch(() => {});
+    lastLlmActivityAt = Date.now();
+    return getLlmStatus();
+  }
+
+  if (message.type === "LIBER_OFFSCREEN_STATUS") {
+    // offscreen.js can't write liber_llm_status itself — Offscreen
+    // Documents only expose chrome.runtime messaging, not chrome.storage
+    // (confirmed directly: typeof chrome.storage is "undefined" there) —
+    // so it relays every status change here instead, and this is the one
+    // place that actually persists it, on its behalf.
+    return setLlmStatus(message.status).then(() => {});
+  }
+
+  if (message.type === "LIBER_CONSENT_PENDING") {
+    // content.js is about to show (or just showed) the consent popup —
+    // record it so a redirect/new-tab before the user answers can resume it
+    // on the destination page instead of losing it.
+    if (tabId == null) return;
+    pendingConsentByTab.set(tabId, {
+      url: message.url,
+      scopeText: message.scopeText,
+      structuredSnapshot: message.structuredSnapshot || null,
+      capturedAt: Date.now(),
+    });
     return;
+  }
+
+  if (message.type === "LIBER_CONSENT_RESOLVED") {
+    // The user answered (yes or no) — nothing left to resume.
+    if (tabId != null) pendingConsentByTab.delete(tabId);
+    return;
+  }
+
+  if (message.type === "LIBER_CHECK_PENDING_CONSENT") {
+    // Sent by every content.js instance right on load — a no-op (resolves
+    // to null) on an ordinary page with nothing pending, so this costs one
+    // cheap round-trip on every page load, not just application pages.
+    if (tabId == null) return;
+    return resolvePendingConsentFor(tabId);
   }
 
   if (message.type === "LIBER_LOG") {
     // Fire-and-forget mirror of content.js's console logging — persisted
     // so the dashboard's activity log can show it, independent of whether
     // anyone had that page's own devtools console open at the time.
-    await appendLog({
+    return appendLog({
       tabId: tabId ?? null,
       url: message.url,
       step: message.step,
       detail: message.detail ?? null,
-    });
-    return;
+    }).then(() => {});
   }
 
-  if (message.type === "LIBER_FLOW_STEP") {
+  if (message.type === "LIBER_SAVE_REQUESTED") {
     if (tabId == null) return;
-    return handleFlowStep(tabId, message.scopeText);
+    handleSaveRequested(tabId, {
+      url: message.url,
+      scopeText: message.scopeText,
+      structuredSnapshot: message.structuredSnapshot || null,
+    }).catch(() => {});
+    return; // fire-and-forget — the real result is delivered via LIBER_EXTRACTION_STATUS above
   }
 
   if (message.type === "CHECK_ONBOARDED") {
@@ -359,50 +368,11 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
   }
 });
 
-browser.notifications.onButtonClicked.addListener(
-  async (notifId, buttonIndex) => {
-    if (!notifId.startsWith("liber-confirm-")) return;
-    const tabId = Number(notifId.replace("liber-confirm-", ""));
-    const flow = await getFlow(tabId);
-    if (!flow) return;
-
-    if (buttonIndex === 0) {
-      // "Save to Liber" — keep the flow around (don't clear it) so later
-      // refinements can update this saved row instead of re-prompting.
-      const savedJob = await addJob(flow.snapshot);
-      await setFlow(tabId, { ...flow, savedJobId: savedJob?.id ?? null });
-    } else {
-      // "Dismiss" — keep the flow around too; later refinements still
-      // update the stored snapshot, just without showing the prompt again.
-      await setFlow(tabId, { ...flow, dismissed: true });
-    }
-
-    browser.notifications.clear(notifId);
-  },
-);
-
-browser.tabs.onRemoved.addListener(async (tabId) => {
+browser.tabs.onRemoved.addListener((tabId) => {
   notReadyNotifiedTabs.delete(tabId);
-
-  const flow = await getFlow(tabId);
-  const snapshot = flow?.snapshot;
-  const hasSomeData = !!(snapshot?.jobTitle || snapshot?.company || snapshot?.location);
-
-  if (flow && flow.status === "pending" && !flow.dismissed && hasSomeData) {
-    // The tab closed before all three fields were ever found (e.g. a site
-    // that never exposes location) — rather than silently losing a real
-    // application over one missing field, fall back to the old "prompt on
-    // any field" behavior as a last resort, once, here. Don't clear the
-    // flow: the notification button handler still needs getFlow(tabId) to
-    // work, and the existing 30-min TTL cleans this up if the notification
-    // is never clicked. (A flow that goes stale via that TTL *while its
-    // tab stays open* gets no such fallback — MV3 has no persistent timer
-    // to drive that proactively; accepted, scoped to the tab-close moment,
-    // which is the common, concrete "this flow is really over" signal.)
-    await setFlow(tabId, { ...flow, status: "captured" });
-    await showSavePrompt(tabId, snapshot);
-    return;
-  }
-
-  await clearFlow(tabId);
+  pendingConsentByTab.delete(tabId); // an unanswered prompt whose tab closed has nowhere left to resume
+  // Nothing else to clean up — handleSaveRequested's promise chain doesn't
+  // depend on the tab staying open; a mid-request tab close just means its
+  // eventual pushExtractionStatus delivery fails and falls through to the
+  // notification fallback above.
 });

@@ -102,7 +102,15 @@
               <span id="profession-label"></span>
             </span>
           </p>
-          <p class="dashboard__llm-status hidden" id="llm-status-chip"></p>
+          <button
+            type="button"
+            class="dashboard__logs-trigger"
+            id="logs-trigger"
+            aria-haspopup="true"
+            aria-expanded="false"
+            aria-label="View scrape activity log">
+            Activity Log
+          </button>
         </header>
 
         <div class="dashboard__table-wrap">
@@ -161,18 +169,6 @@
           </button>
         </nav>
 
-        <section class="dashboard__logs" aria-label="Scrape activity log">
-          <div class="dashboard__logs-header">
-            <h2>Scrape Activity Log</h2>
-            <button type="button" class="dashboard__logs-clear" id="logs-clear">
-              Clear
-            </button>
-          </div>
-          <ol class="dashboard__logs-list" id="logs-list">
-            <!-- rows injected by dashboard-core.js, refreshed live as new
-                 scrape steps come in from content.js -->
-          </ol>
-        </section>
       </main>
 
       <aside class="dashboard__rail" aria-label="Quick actions">

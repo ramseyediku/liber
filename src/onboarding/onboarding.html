@@ -70,9 +70,30 @@
       </form>
 
       <div id="confirmation" class="confirmation hidden">
-        <h2>You're all set</h2>
-        <p>You can close this tab now. Liber will take it from here and start tracking your applications.</p>
-        <p id="llm-status" class="llm-status hidden"></p>
+        <div id="setup-loading" class="setup-state hidden">
+          <h2>Setting up your job tracker</h2>
+          <p>Please wait while we set up your job tracker.</p>
+          <div class="setup-progress" id="setup-progress">
+            <div class="setup-progress__track">
+              <div class="setup-progress__fill" id="setup-progress-fill"></div>
+            </div>
+          </div>
+          <p class="setup-status" id="setup-status-text"></p>
+          <button type="button" id="setup-retry-btn" class="hidden">Retry</button>
+        </div>
+
+        <div id="setup-ready" class="setup-state hidden">
+          <h2>You're all set</h2>
+          <p>Your job tracker is ready.</p>
+          <p>You can close this tab now. Liber will take it from here and start tracking your applications.</p>
+          <button type="button" id="setup-ok-btn">OK</button>
+        </div>
+
+        <div id="setup-unsupported" class="setup-state hidden">
+          <h2>You're all set</h2>
+          <p>This device can't finish one part of the setup, but your job tracker still works — you can track applications manually.</p>
+          <button type="button" id="setup-dismiss-btn">OK</button>
+        </div>
       </div>
     </main>
 

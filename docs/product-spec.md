@@ -41,6 +41,21 @@ an active job search.
   edit notes inline, delete
 - Local-only storage, no account or sync
 
+## Design principles
+
+- **No "AI"/"LLM"/"model" language anywhere in user-facing text.** Liber is
+  presented to the user only as a job tracker that "sets up" and "scrapes"
+  — never as an AI product, regardless of what runs under the hood
+  (currently an on-device LLM via WebLLM, see `docs/architecture.md`).
+  This was set as an explicit rule for the post-signup setup page (see
+  `docs/roadmap.md`'s "Post-signup setup page") and then deliberately
+  extended further than that one page asked for: the dashboard's status
+  pill was removed rather than reworded, and the "ready"/"not ready" OS
+  notifications were either removed or reworded to match, so the rule
+  holds consistently across the whole extension, not just the one screen
+  it was first stated for. Any new user-facing copy should be checked
+  against this before mentioning the underlying tech.
+
 ## Non-goals (for now)
 
 - No cloud sync / multi-device support

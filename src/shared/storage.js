@@ -3,7 +3,6 @@
 
 const JOBS_KEY = "liber_jobs";
 const PROFILE_KEY = "liber_profile";
-const LLM_READY_NOTIFIED_KEY = "liber_llm_ready_notified";
 
 export const STATUS = {
   APPLIED: "applied",
@@ -92,18 +91,4 @@ export async function setProfile(profile) {
 export async function isOnboarded() {
   const profile = await getProfile();
   return !!(profile && profile.name && profile.profession);
-}
-
-// Persistent (not session-backed, unlike llmStatus.js) — this needs to
-// survive the browser restarting, so the one-time "Liber's on-device AI is
-// ready" notification (background.js) only ever fires once per install,
-// not once per service-worker restart that happens to land on a cache-warm
-// "ready" transition.
-export async function hasNotifiedLlmReady() {
-  const result = await browser.storage.local.get(LLM_READY_NOTIFIED_KEY);
-  return !!result[LLM_READY_NOTIFIED_KEY];
-}
-
-export async function markLlmReadyNotified() {
-  await browser.storage.local.set({ [LLM_READY_NOTIFIED_KEY]: true });
 }

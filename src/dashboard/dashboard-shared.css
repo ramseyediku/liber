@@ -97,34 +97,6 @@
   display: none !important;
 }
 
-/* Small, non-interactive status line reflecting liber_llm_status (see
-   src/shared/llmStatus.js) — same text on the popup and full view, driven
-   by dashboard-core.js's renderLlmStatusChip(). */
-.dashboard__llm-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5em;
-  margin: 0 0 var(--space-3);
-  padding: 0.3em var(--space-3);
-  border-radius: calc(var(--border-radius) / 2);
-  background: var(--clr-grey);
-  color: var(--clr-dark);
-  font-size: 0.78rem;
-  font-weight: 500;
-  opacity: 0.85;
-}
-
-.dashboard__llm-status--ready {
-  background: var(--clr-applied);
-  color: var(--clr-applied-text);
-}
-
-.dashboard__llm-status--error,
-.dashboard__llm-status--unsupported {
-  background: var(--clr-rejected);
-  color: var(--clr-rejected-text);
-}
-
 /* Status pill button that opens the floating .dashboard__status-menu
    listbox below (built/positioned in dashboard-core.js, same pattern as
    the notes and profile popovers). */
@@ -574,24 +546,65 @@
   gap: 2px;
 }
 
-/* Below the table/pagination (full view only — see dashboard-core.js):
-   a live feed of content.js's per-click scraping steps, relayed through
-   background.js/logStorage.js and refreshed via storage.onChanged, same
-   pattern as the jobs table's own auto-refresh. */
-.dashboard__logs {
-  margin-top: var(--space-6);
-  background: var(--clr-white);
-  border: 1px solid rgba(31, 31, 31, 0.04);
-  border-radius: var(--border-radius);
-  box-shadow:
-    0 1px 1px rgba(15, 23, 42, 0.02),
-    0 8px 24px -16px rgba(15, 23, 42, 0.08);
+/* Floating popover for the full view's scrape activity log (opened via
+   the header's #logs-trigger button, dashboard-core.js's
+   openLogsPopover) — same anchored-popover pattern as the notes/profile
+   popovers above (.dashboard__popover already supplies the card chrome).
+   Composes with the unchanged .dashboard__logs-header/-clear/-list/-empty
+   and .dashboard__log-row* rules below. */
+.dashboard__logs-popover {
+  width: 26rem;
+  padding: 0;
+}
 
-  @container style(--theme-icon: "🌙") {
-    border-color: rgba(255, 255, 255, 0.05);
-    box-shadow:
-      0 1px 1px rgba(0, 0, 0, 0.15),
-      0 10px 28px -18px rgba(0, 0, 0, 0.45);
+.dashboard__logs-popover .dashboard__logs-header {
+  border-radius: var(--border-radius) var(--border-radius) 0 0;
+}
+
+.dashboard__logs-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dashboard__logs-popover-close {
+  width: auto;
+  padding: var(--space-1);
+  background: transparent;
+  color: var(--clr-dark);
+  opacity: 0.6;
+
+  svg {
+    width: 1.1rem;
+    height: 1.1rem;
+  }
+
+  &:hover,
+  &:focus {
+    opacity: 1;
+    background: var(--clr-grey);
+    transform: none;
+  }
+}
+
+/* Header trigger button (full view only) that opens the popover above. */
+.dashboard__logs-trigger {
+  width: auto;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--clr-grey);
+  border-radius: calc(var(--border-radius) / 2);
+  background: transparent;
+  color: var(--clr-dark);
+  opacity: 0.75;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+
+  &:hover,
+  &:focus {
+    opacity: 1;
+    background: var(--clr-grey);
+    transform: none;
   }
 }
 

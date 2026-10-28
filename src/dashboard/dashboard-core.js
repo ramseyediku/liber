@@ -9,7 +9,6 @@ import {
   STATUS_META,
 } from "../shared/storage.js";
 import { getLogs, clearLogs } from "../shared/logStorage.js";
-import { getLlmStatus } from "../shared/llmStatus.js";
 
 const EMPTY_MESSAGE =
   'No applications tracked yet. Click "Apply" on any job listing to start.';
@@ -37,9 +36,7 @@ let paginationPrev;
 let paginationNext;
 let currentPage = 1;
 let totalPages = 1;
-let logsList;
-let logsClearBtn;
-let llmStatusChip;
+let logsTriggerBtn;
 let activePopover = null;
 
 // The slide-in detail drawer (full view only — see initDashboard). detailJobId
@@ -317,6 +314,82 @@ function openNotesPopover(job, anchorBtn) {
 
   document.addEventListener("mousedown", handleOutsideClick, true);
   document.addEventListener("keydown", handlePopoverKeydown, true);
+}
+
+// Full view only (see initDashboard) — the scrape activity log used to be
+// a persistent inline section; it's now built fresh inside this popover
+// each time it opens, same anchored-popover pattern as the notes/profile
+// popovers above (so Escape/outside-click dismissal come for free via the
+// shared handleOutsideClick/handlePopoverKeydown/closeActivePopover). Also
+// toggle-closes if its own trigger is clicked again while open, matching
+// openProfilePopover/openStatusMenu's behavior.
+function openLogsPopover(anchorBtn) {
+  if (activePopoverAnchor === anchorBtn) return closeActivePopover();
+  if (activePopover) closeActivePopover();
+
+  const popover = document.createElement("div");
+  popover.className = "dashboard__popover dashboard__logs-popover";
+
+  const header = document.createElement("div");
+  header.className = "dashboard__logs-header";
+
+  const heading = document.createElement("h2");
+  heading.textContent = "Scrape Activity Log";
+  header.appendChild(heading);
+
+  const headerActions = document.createElement("div");
+  headerActions.className = "dashboard__logs-header-actions";
+
+  const clearBtn = document.createElement("button");
+  clearBtn.type = "button";
+  clearBtn.className = "dashboard__logs-clear";
+  clearBtn.textContent = "Clear";
+  clearBtn.addEventListener("click", async () => {
+    await clearLogs();
+    renderLogs();
+  });
+  headerActions.appendChild(clearBtn);
+
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "dashboard__logs-popover-close";
+  closeBtn.setAttribute("aria-label", "Close activity log");
+  closeBtn.innerHTML =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="../shared/icons.svg#icon-close"></use></svg>';
+  closeBtn.addEventListener("click", () => closeActivePopover());
+  headerActions.appendChild(closeBtn);
+
+  header.appendChild(headerActions);
+  popover.appendChild(header);
+
+  const list = document.createElement("ol");
+  list.className = "dashboard__logs-list";
+  list.id = "logs-list";
+  popover.appendChild(list);
+
+  document.body.appendChild(popover);
+
+  const anchorRect = anchorBtn.getBoundingClientRect();
+  const left = Math.max(
+    12,
+    Math.min(anchorRect.left, window.innerWidth - popover.offsetWidth - 12),
+  );
+  popover.style.left = `${left}px`;
+
+  const openUp =
+    anchorRect.bottom + popover.offsetHeight + 10 > window.innerHeight;
+  popover.style.top = openUp
+    ? `${anchorRect.top - popover.offsetHeight - 10}px`
+    : `${anchorRect.bottom + 10}px`;
+
+  anchorBtn.setAttribute("aria-expanded", "true");
+  activePopover = popover;
+  activePopoverAnchor = anchorBtn;
+
+  document.addEventListener("mousedown", handleOutsideClick, true);
+  document.addEventListener("keydown", handlePopoverKeydown, true);
+
+  renderLogs();
 }
 
 function renderDetailStatus(job, jobs) {
@@ -692,20 +765,26 @@ function buildLogRow(entry) {
   return li;
 }
 
-// Full view only (see initDashboard) — logStorage's rolling buffer backs
-// this, and the storage.onChanged listener below keeps it live-refreshed
-// as new scrape steps come in from content.js, without a page reload.
+// Full view only — lives inside the logs popover (openLogsPopover above),
+// built/destroyed with it rather than a persistent page section. The
+// storage.onChanged listener still calls this unconditionally on every
+// liber_logs change; this guard is what makes that a no-op while the
+// popover is closed, instead of erroring on missing elements.
 async function renderLogs() {
-  if (!logsList) return;
+  if (!activePopover || !activePopover.classList.contains("dashboard__logs-popover")) {
+    return;
+  }
+  const logsListEl = activePopover.querySelector("#logs-list");
+  if (!logsListEl) return;
   const logs = await getLogs();
 
-  logsList.innerHTML = "";
+  logsListEl.innerHTML = "";
   if (logs.length === 0) {
     const li = document.createElement("li");
     li.className = "dashboard__logs-empty";
     li.textContent =
       'No scrape activity yet. Click "Apply" on a job listing to see logs here.';
-    logsList.appendChild(li);
+    logsListEl.appendChild(li);
     return;
   }
 
@@ -713,37 +792,7 @@ async function renderLogs() {
   logs
     .slice()
     .reverse()
-    .forEach((entry) => logsList.appendChild(buildLogRow(entry)));
-}
-
-// Mirrors onboarding.js's status text, rendered as a small chip here
-// instead — same liber_llm_status record (src/shared/llmStatus.js), shown
-// on both the popup and full view since both call initDashboard().
-function renderLlmStatusChip(status) {
-  if (!llmStatusChip) return;
-  if (!status || status.state === "idle") {
-    llmStatusChip.classList.add("hidden");
-    return;
-  }
-
-  llmStatusChip.className = "dashboard__llm-status";
-  const text =
-    status.state === "ready"
-      ? "AI model: Ready"
-      : status.state === "unsupported"
-        ? "AI model: Unsupported browser"
-        : status.state === "error"
-          ? "AI model: Failed to load"
-          : `AI model: Loading… ${status.progress || 0}%`;
-  // Kept short in the chip itself (little room here vs. onboarding's full
-  // paragraph) — the title tooltip carries the "this is one-time, Liber
-  // still works without it" framing for anyone who hovers.
-  llmStatusChip.title =
-    status.state === "loading"
-      ? "One-time on-device model download, running in the background. You can use Liber in the meantime — applications just won't be scraped automatically until this finishes."
-      : "";
-  llmStatusChip.classList.add(`dashboard__llm-status--${status.state}`);
-  llmStatusChip.textContent = text;
+    .forEach((entry) => logsListEl.appendChild(buildLogRow(entry)));
 }
 
 async function renderJobs() {
@@ -898,19 +947,14 @@ export function initDashboard(options = {}) {
       });
     }
 
-    logsList = document.getElementById("logs-list");
-    logsClearBtn = document.getElementById("logs-clear");
-    if (logsClearBtn) {
-      logsClearBtn.addEventListener("click", async () => {
-        await clearLogs();
-        renderLogs();
-      });
+    logsTriggerBtn = document.getElementById("logs-trigger");
+    if (logsTriggerBtn) {
+      logsTriggerBtn.addEventListener("click", () => openLogsPopover(logsTriggerBtn));
     }
   }
   avatar = document.getElementById("user-avatar");
   sidebarProfileTrigger = document.getElementById("sidebar-profile-trigger");
   dashboardEl = document.querySelector(".dashboard");
-  llmStatusChip = document.getElementById("llm-status-chip");
 
   // The popup has no avatar/profile trigger of its own anymore — only the
   // full view's sidebar profile section opens the popover, and only while
@@ -928,18 +972,9 @@ export function initDashboard(options = {}) {
   renderGreeting();
   renderJobs();
   renderLogs();
-  getLlmStatus().then(renderLlmStatusChip);
-  // Nudges a stalled/never-started load forward just by opening either
-  // dashboard page — warmup() is idempotent (a no-op if already loading
-  // or ready), but without this, a load that stalled because MV3 killed
-  // an idle service worker mid-download would otherwise never resume
-  // until some other trigger (install/startup/onboarding/an apply click)
-  // happened to fire again.
-  browser.runtime.sendMessage({ type: "LIBER_LLM_WARMUP" }).catch(() => {});
 
   // Re-render on storage changes from another context (e.g. a new job
-  // saved, a new scrape step logged by content.js/background.js, or the
-  // on-device model's load progress advancing).
+  // saved, or a new scrape step logged by content.js/background.js).
   browser.storage.onChanged.addListener((changes) => {
     if (changes.liber_jobs) {
       if (activePopover) {
@@ -949,6 +984,5 @@ export function initDashboard(options = {}) {
       }
     }
     if (changes.liber_logs) renderLogs();
-    if (changes.liber_llm_status) renderLlmStatusChip(changes.liber_llm_status.newValue);
   });
 }
