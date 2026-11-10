@@ -60,27 +60,43 @@ body {
   gap: var(--space-3);
   padding: var(--space-4);
   border-bottom: 1px solid var(--clr-grey);
-  cursor: pointer;
 
   &:last-child {
     border-bottom: none;
   }
 
-  &:hover,
-  &:active {
+  &:hover {
     background: var(--clr-row-hover);
   }
 }
 
+/* A button, so it is a tab stop; strip the global filled-button look. */
 .dashboard__card-main {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-1);
   min-width: 0;
+  width: auto;
+  padding: 0;
+  border-radius: calc(var(--border-radius) / 2);
+  background: none;
+  color: inherit;
+  font-weight: inherit;
+  text-align: left;
+  text-box-trim: none;
+
+  &:hover,
+  &:active {
+    background: none;
+    transform: none;
+  }
 }
 
 .dashboard__card-title {
-  margin: 0;
+  display: block;
+  max-width: 100%;
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--clr-dark);
@@ -91,10 +107,10 @@ body {
 
 /* "Company · date added" on one line, as in the design. */
 .dashboard__card-meta {
-  margin: 0;
+  display: block;
+  max-width: 100%;
   font-size: 0.8rem;
-  color: var(--clr-dark);
-  opacity: 0.6;
+  color: var(--clr-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -103,12 +119,6 @@ body {
 .dashboard__card .dashboard__status-pill {
   flex: none;
   width: auto;
-  cursor: default;
-
-  &:hover,
-  &:focus {
-    filter: none;
-  }
 }
 
 .dashboard__cards .dashboard__empty {
@@ -144,6 +154,42 @@ body {
   padding: 0 var(--space-2);
   font-size: 0.78rem;
   text-align: center;
+  color: var(--clr-muted);
+}
+
+/* Counts per status above the cards. */
+.dashboard__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0 var(--space-2);
+  list-style: none;
+  font-size: 0.8rem;
+  font-weight: 600;
   color: var(--clr-dark);
-  opacity: 0.5;
+
+  &[hidden] {
+    display: none;
+  }
+
+  li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+  }
+
+  .dashboard__status-dot {
+    flex: none;
+    width: 0.5rem;
+    aspect-ratio: 1;
+    border-radius: 50%;
+  }
+}
+
+.dashboard__card-stale {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--clr-interviewing-text);
+  font-weight: 600;
 }

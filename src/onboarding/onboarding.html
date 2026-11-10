@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <title>Welcome to Liber</title>
-    <script src="../shared/theme.js"></script>
+    <script src="../../dist/shared/theme.js"></script>
     <link rel="icon" href="../assets/favicon/favicon.ico" />
     <link
       rel="icon"
@@ -57,47 +57,23 @@
 
       <form id="onboarding-form" method="post">
         <label for="name">Your name</label>
-        <input type="text" name="name" placeholder="Alex Morgan" required />
+        <input type="text" name="name" id="name" placeholder="Alex Morgan" autocomplete="name" required />
 
         <label for="profession">What profession are you applying for?</label>
         <input
           type="text"
           name="profession"
+          id="profession"
           placeholder="Software Engineer"
           required />
 
-        <button type="submit">Get started</button>
+        <button type="submit" id="submit-btn">Get started</button>
+
+        <p class="auth-switch">Already have an account? <a href="login.html">Log in</a></p>
       </form>
-
-      <div id="confirmation" class="confirmation hidden">
-        <div id="setup-loading" class="setup-state hidden">
-          <h2>Setting up your job tracker</h2>
-          <p>Please wait while we set up your job tracker.</p>
-          <div class="setup-progress" id="setup-progress">
-            <div class="setup-progress__track">
-              <div class="setup-progress__fill" id="setup-progress-fill"></div>
-            </div>
-          </div>
-          <p class="setup-status" id="setup-status-text"></p>
-          <button type="button" id="setup-retry-btn" class="hidden">Retry</button>
-        </div>
-
-        <div id="setup-ready" class="setup-state hidden">
-          <h2>You're all set</h2>
-          <p>Your job tracker is ready.</p>
-          <p>You can close this tab now. Liber will take it from here and start tracking your applications.</p>
-          <button type="button" id="setup-ok-btn">OK</button>
-        </div>
-
-        <div id="setup-unsupported" class="setup-state hidden">
-          <h2>You're all set</h2>
-          <p>This device can't finish one part of the setup, but your job tracker still works — you can track applications manually.</p>
-          <button type="button" id="setup-dismiss-btn">OK</button>
-        </div>
-      </div>
     </main>
 
     <script src="../../vendor/browser-polyfill.js"></script>
-    <script type="module" src="onboarding.js"></script>
+    <script type="module" src="../../dist/onboarding/onboarding.js"></script>
   </body>
 </html>

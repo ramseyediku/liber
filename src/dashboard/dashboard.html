@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <title>Liber Dashboard</title>
-    <script src="../shared/theme.js"></script>
+    <script src="../../dist/shared/theme.js"></script>
     <link rel="icon" href="../assets/favicon/favicon.ico" />
     <link
       rel="icon"
@@ -30,6 +30,17 @@
         </div>
       </header>
 
+      <div class="dashboard__signed-out hidden" id="signed-out">
+        <p>Sign in to see your applications.</p>
+        <button type="button" id="signed-out-signin-btn">Sign in</button>
+      </div>
+
+      <ul
+        class="dashboard__summary"
+        id="status-summary"
+        aria-label="Applications by status"
+        hidden></ul>
+
       <div class="dashboard__cards" id="jobs-cards">
         <!-- cards injected by dashboard.js -->
       </div>
@@ -54,7 +65,32 @@
       </button>
     </div>
 
+    <!-- Cloned by dashboard-core.js for each card's status pill and menu. -->
+    <template id="chevron-down-icon-template">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.2"
+        stroke-linecap="round"
+        stroke-linejoin="round">
+        <use href="../shared/icons.svg#icon-chevron-down"></use>
+      </svg>
+    </template>
+
+    <template id="check-icon-template">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.2"
+        stroke-linecap="round"
+        stroke-linejoin="round">
+        <use href="../shared/icons.svg#icon-check"></use>
+      </svg>
+    </template>
+
     <script src="../../vendor/browser-polyfill.js"></script>
-    <script type="module" src="dashboard.js"></script>
+    <script type="module" src="../../dist/dashboard/dashboard.js"></script>
   </body>
 </html>

@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Liber Settings</title>
+    <script src="../../dist/shared/theme.js"></script>
+    <link rel="icon" href="../assets/favicon/favicon.ico" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="../assets/favicon/favicon-32x32.png" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="../assets/favicon/favicon-16x16.png" />
+    <link rel="manifest" href="../assets/favicon/site.webmanifest" />
+    <link
+      rel="apple-touch-icon"
+      href="../assets/favicon/apple-touch-icon.png" />
+    <link rel="stylesheet" href="../dashboard/dashboard-full.css" />
+    <link rel="stylesheet" href="settings.css" />
+  </head>
+  <body>
+    <div class="dashboard">
+      <aside class="dashboard__aside" aria-label="Primary navigation">
+        <div class="dashboard__brand">
+          <a class="dashboard__brand-link" href="../dashboard/dashboard-full.html">
+            <img class="logo" src="../assets/logo.png" alt="Liber logo" />
+            <span class="dashboard__label">Liber</span>
+          </a>
+
+          <button
+            type="button"
+            class="dashboard__sidebar-toggle"
+            id="sidebar-toggle"
+            aria-label="Collapse sidebar">
+            <svg
+              class="sidebar-toggle-icon-collapse"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round">
+              <use href="../shared/icons.svg#icon-panel-left"></use>
+            </svg>
+            <svg
+              class="sidebar-toggle-icon-expand"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round">
+              <use href="../shared/icons.svg#icon-panel-right"></use>
+            </svg>
+          </button>
+        </div>
+
+        <a
+          class="dashboard__link"
+          href="../dashboard/dashboard-full.html"
+          aria-label="Dashboard">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round">
+            <use href="../shared/icons.svg#icon-job"></use>
+          </svg>
+          <p class="dashboard__label">Dashboard</p>
+        </a>
+        <a
+          class="dashboard__link dashboard__link--active"
+          href="settings.html"
+          aria-current="page"
+          aria-label="Settings">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round">
+            <use href="../shared/icons.svg#icon-settings"></use>
+          </svg>
+          <p class="dashboard__label">Settings</p>
+        </a>
+      </aside>
+
+      <main class="dashboard__main">
+        <div class="dashboard__corner">
+          <button
+            type="button"
+            class="dashboard__theme-toggle"
+            id="theme-toggle"
+            aria-label="Switch to dark mode">
+            <svg
+              class="theme-icon-sun"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round">
+              <use href="../shared/icons.svg#icon-sun"></use>
+            </svg>
+            <svg
+              class="theme-icon-moon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round">
+              <use href="../shared/icons.svg#icon-moon"></use>
+            </svg>
+          </button>
+          <a class="dashboard__login-btn hidden" id="login-link" href="../onboarding/login.html">Log in</a>
+          <span class="dashboard__avatar hidden" id="account-avatar" role="img" aria-label="Account"></span>
+        </div>
+
+        <div class="settings">
+          <header class="settings__header">
+            <h1>Settings</h1>
+            <p>Manage your profile, job profiles, data and account.</p>
+          </header>
+
+          <!-- Display name -->
+          <section class="settings__card" aria-labelledby="h-profile">
+            <div class="settings__card-head"><h2 id="h-profile">Profile</h2></div>
+            <form class="settings__name-form" id="name-form" novalidate>
+              <span class="settings__big-avatar" id="name-avatar" aria-hidden="true"></span>
+              <div class="settings__field">
+                <label for="display-name">Display name</label>
+                <input
+                  id="display-name"
+                  type="text"
+                  autocomplete="nickname"
+                  aria-describedby="name-error" />
+              </div>
+              <button type="submit" class="settings__btn settings__btn--primary" id="name-save" disabled>
+                Save
+              </button>
+            </form>
+            <p class="settings__error hidden" id="name-error" role="alert">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="../shared/icons.svg#icon-alert-circle"></use></svg>
+              <span>Enter a display name</span>
+            </p>
+          </section>
+
+          <!-- Job profiles -->
+          <section class="settings__card" aria-labelledby="h-job-profiles">
+            <div class="settings__card-head"><h2 id="h-job-profiles">Job profiles</h2></div>
+            <div class="settings__row settings__row--stack">
+              <p class="settings__desc">
+                A job profile groups applications by the kind of role you're after. New
+                applications are saved under the active profile.
+              </p>
+              <ul class="settings__profiles" id="profile-list"></ul>
+            </div>
+            <form class="settings__row settings__add-profile" id="profile-form" novalidate>
+              <div class="settings__field">
+                <label for="new-profile">Add a job profile</label>
+                <input
+                  id="new-profile"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="e.g. Product design"
+                  aria-describedby="profile-error" />
+              </div>
+              <button type="submit" class="settings__btn settings__btn--primary" id="profile-add">
+                Add
+              </button>
+            </form>
+            <p class="settings__error hidden" id="profile-error" role="alert">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="../shared/icons.svg#icon-alert-circle"></use></svg>
+              <span></span>
+            </p>
+          </section>
+
+          <!-- Data & sync -->
+          <section class="settings__card" aria-labelledby="h-data">
+            <div class="settings__card-head"><h2 id="h-data">Data &amp; sync</h2></div>
+            <div class="settings__row">
+              <div class="settings__text">
+                <span class="settings__title" id="sync-label">Cloud sync</span>
+                <span class="settings__desc" id="sync-desc"></span>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                class="dashboard__switch hidden"
+                id="sync-switch"
+                aria-checked="false"
+                aria-labelledby="sync-label"
+                aria-describedby="sync-desc">
+                <span class="dashboard__switch-knob"></span>
+              </button>
+              <a
+                class="dashboard__switch dashboard__switch--link"
+                id="sync-login-link"
+                href="../onboarding/login.html"
+                aria-label="Cloud sync is off. Log in to turn it on"
+                title="Log in to turn on cloud sync">
+                <span class="dashboard__switch-knob"></span>
+              </a>
+            </div>
+            <div class="settings__row">
+              <div class="settings__text">
+                <span class="settings__title">Export your data</span>
+                <span class="settings__desc" id="export-desc"></span>
+              </div>
+              <div class="settings__export">
+                <select id="export-profile" aria-label="Job profile to export"></select>
+                <button type="button" class="settings__btn settings__btn--ghost" id="export-btn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="../shared/icons.svg#icon-download"></use></svg>
+                  Export CSV
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Account -->
+          <section class="settings__card" aria-labelledby="h-account">
+            <div class="settings__card-head"><h2 id="h-account">Account</h2></div>
+
+            <div id="account-signed-out" class="hidden">
+              <div class="settings__row">
+                <div class="settings__text">
+                  <span class="settings__title">You're not logged in</span>
+                  <span class="settings__desc">
+                    Your applications are saved on this device only. Log in to sync them and
+                    manage your account.
+                  </span>
+                </div>
+                <a class="settings__btn settings__btn--primary" href="../onboarding/login.html">Log in</a>
+              </div>
+            </div>
+
+            <div id="account-signed-in" class="hidden">
+              <form class="settings__row settings__row--form" id="email-form" novalidate>
+                <div class="settings__field">
+                  <label for="account-email">Email</label>
+                  <input id="account-email" type="email" autocomplete="email" aria-describedby="email-error" />
+                </div>
+                <button type="submit" class="settings__btn settings__btn--ghost" id="email-save" disabled>
+                  Update email
+                </button>
+              </form>
+              <p class="settings__error hidden" id="email-error" role="alert">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="../shared/icons.svg#icon-alert-circle"></use></svg>
+                <span></span>
+              </p>
+
+              <form class="settings__row settings__row--form" id="password-form" novalidate>
+                <div class="settings__field">
+                  <label for="account-password">New password</label>
+                  <input
+                    id="account-password"
+                    type="password"
+                    autocomplete="new-password"
+                    placeholder="At least 8 characters"
+                    aria-describedby="password-error" />
+                </div>
+                <button type="submit" class="settings__btn settings__btn--ghost" id="password-save" disabled>
+                  Update password
+                </button>
+              </form>
+              <p class="settings__error hidden" id="password-error" role="alert">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="../shared/icons.svg#icon-alert-circle"></use></svg>
+                <span></span>
+              </p>
+
+              <div class="settings__row">
+                <div class="settings__text">
+                  <span class="settings__title">Log out</span>
+                  <span class="settings__desc" id="signed-in-as"></span>
+                </div>
+                <button type="button" class="settings__btn settings__btn--ghost" id="logout-btn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="../shared/icons.svg#icon-log-out"></use></svg>
+                  Log out
+                </button>
+              </div>
+              <div class="settings__row">
+                <div class="settings__text">
+                  <span class="settings__title settings__title--danger">Delete account</span>
+                  <span class="settings__desc">Permanently delete your account and all your applications.</span>
+                </div>
+                <button type="button" class="settings__btn settings__btn--danger-ghost" id="delete-open">
+                  Delete account
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <div class="settings__toast hidden" id="toast" role="status" aria-live="polite">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><use href="../shared/icons.svg#icon-check"></use></svg>
+      <span id="toast-text"></span>
+    </div>
+
+    <dialog class="settings__dialog" id="delete-dialog" aria-labelledby="delete-title" aria-describedby="delete-desc">
+      <form method="dialog" id="delete-form">
+        <span class="settings__dialog-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="../shared/icons.svg#icon-alert-circle"></use></svg>
+        </span>
+        <h2 id="delete-title">Delete your account?</h2>
+        <p id="delete-desc">
+          This permanently deletes your account and all your applications from Liber,
+          including the copies in the cloud. This can't be undone.
+        </p>
+        <button type="button" class="settings__link-btn" id="delete-export">Export your data first</button>
+        <label for="delete-confirm">Type <strong>DELETE</strong> to confirm</label>
+        <input id="delete-confirm" type="text" autocomplete="off" />
+        <p class="settings__error hidden" id="delete-error" role="alert">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="../shared/icons.svg#icon-alert-circle"></use></svg>
+          <span></span>
+        </p>
+        <div class="settings__dialog-actions">
+          <button type="button" class="settings__btn settings__btn--ghost" id="delete-cancel">Cancel</button>
+          <button type="submit" class="settings__btn settings__btn--danger" id="delete-confirm-btn" disabled>
+            Delete account
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="../../vendor/browser-polyfill.js"></script>
+    <script type="module" src="../../dist/settings/settings.js"></script>
+  </body>
+</html>

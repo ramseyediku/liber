@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Log in — Liber</title>
+    <script src="../../dist/shared/theme.js"></script>
+    <link rel="icon" href="../assets/favicon/favicon.ico" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="../assets/favicon/favicon-32x32.png" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="../assets/favicon/favicon-16x16.png" />
+    <link rel="manifest" href="../assets/favicon/site.webmanifest" />
+    <link
+      rel="apple-touch-icon"
+      href="../assets/favicon/apple-touch-icon.png" />
+    <link rel="stylesheet" href="onboarding.css" />
+  </head>
+  <body>
+    <button
+      type="button"
+      class="dashboard__theme-toggle onboarding__theme-toggle"
+      id="theme-toggle"
+      aria-label="Switch to dark mode">
+      <svg
+        class="theme-icon-sun"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round">
+        <use href="../shared/icons.svg#icon-sun"></use>
+      </svg>
+      <svg
+        class="theme-icon-moon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round">
+        <use href="../shared/icons.svg#icon-moon"></use>
+      </svg>
+    </button>
+
+    <main class="onboarding onboarding--auth">
+      <img class="logo" src="../assets/logo.png" alt="Liber logo" />
+
+      <a class="auth-back" href="../dashboard/dashboard-full.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <use href="../shared/icons.svg#icon-chevron-left"></use>
+        </svg>
+        Back to dashboard
+      </a>
+
+      <h1>Log in to Liber</h1>
+      <p>Log in to turn on cloud sync and see your applications on any device.</p>
+
+      <form id="login-form" method="post">
+        <div class="auth-field">
+          <label for="email">Email</label>
+          <div class="auth-field__control auth-field__control--checkable">
+            <input type="email" name="email" id="email" autocomplete="username" inputmode="email" placeholder="you@example.com" required />
+            <span class="auth-field__check hidden" id="email-check">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <use href="../shared/icons.svg#icon-confirm-check"></use>
+              </svg>
+            </span>
+          </div>
+          <p class="auth-field__error hidden" id="email-error">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <use href="../shared/icons.svg#icon-alert-circle"></use>
+            </svg>
+            <span></span>
+          </p>
+        </div>
+
+        <div class="auth-field">
+          <div class="auth-forgot">
+            <label for="password">Password</label>
+            <a href="reset-password.html">Forgot password?</a>
+          </div>
+          <div class="auth-field__control auth-field__control--toggle">
+            <input type="password" name="password" id="password" autocomplete="current-password" placeholder="Your password" required />
+            <span class="auth-field__check hidden" id="password-check">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <use href="../shared/icons.svg#icon-confirm-check"></use>
+              </svg>
+            </span>
+            <button type="button" class="auth-field__toggle" id="toggle-password" aria-label="Show password">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <use href="../shared/icons.svg#icon-eye"></use>
+              </svg>
+            </button>
+          </div>
+          <p class="auth-field__error hidden" id="password-error">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <use href="../shared/icons.svg#icon-alert-circle"></use>
+            </svg>
+            <span>Enter your password</span>
+          </p>
+        </div>
+
+        <p class="onboarding__error hidden" id="auth-error"></p>
+
+        <button type="submit" id="submit-btn">Log in</button>
+      </form>
+
+      <p class="auth-switch">Don't have an account? <a href="signup.html">Create one</a></p>
+    </main>
+
+    <script src="../../vendor/browser-polyfill.js"></script>
+    <script type="module" src="../../dist/onboarding/login.js"></script>
+  </body>
+</html>

@@ -45,6 +45,10 @@
   --clr-dark: var(--theme-light-text);
   --clr-grey: var(--theme-light-grey);
   --clr-grey-dark: var(--theme-light-grey-dark);
+  /* Secondary text. A solid mix, not opacity, so it stays at least 4.5:1 on
+     both the white surface and the grey canvas. Re-declared in the dark
+     block below because custom properties resolve where they are declared. */
+  --clr-muted: color-mix(in srgb, var(--theme-light-text) 72%, var(--theme-light-surface));
 
   --clr-accent: var(--theme-light-accent);
   --clr-accent-hover: var(--theme-light-accent-hover);
@@ -62,11 +66,14 @@
   --clr-rejected-text: hsl(0, 84%, 36%);
   --clr-rejected-transparent: hsla(0, 84%, 75%, 0.08);
   --clr-rejected-dot: hsl(0, 84%, 55%);
-  --clr-ghosted: hsl(218, 14%, 86%);
-  --clr-ghosted-dot: hsl(218, 11%, 55%);
+  --clr-withdrawn: hsl(218, 14%, 86%);
+  --clr-withdrawn-dot: hsl(218, 11%, 55%);
   --clr-interviewing: hsl(36, 95%, 85%);
   --clr-interviewing-text: hsl(30, 90%, 30%);
   --clr-interviewing-dot: hsl(38, 92%, 48%);
+  --clr-offer: hsl(142, 71%, 87%);
+  --clr-offer-text: hsl(142, 71%, 25%);
+  --clr-offer-dot: hsl(142, 71%, 40%);
 
   --border-radius: 0.95rem;
 
@@ -97,6 +104,7 @@
     --clr-dark: var(--theme-dark-text);
     --clr-grey: var(--theme-dark-grey);
     --clr-grey-dark: var(--theme-dark-grey-dark);
+    --clr-muted: color-mix(in srgb, var(--theme-dark-text) 72%, var(--theme-dark-surface));
 
     --clr-accent: var(--theme-dark-accent);
     --clr-accent-hover: var(--theme-dark-accent-hover);
@@ -110,11 +118,14 @@
     --clr-rejected: hsl(0, 55%, 32%);
     --clr-rejected-text: hsl(0, 90%, 86%);
     --clr-rejected-dot: hsl(0, 84%, 72%);
-    --clr-ghosted: hsl(218, 14%, 38%);
-    --clr-ghosted-dot: hsl(218, 11%, 65%);
+    --clr-withdrawn: hsl(218, 14%, 38%);
+    --clr-withdrawn-dot: hsl(218, 11%, 65%);
     --clr-interviewing: hsl(32, 60%, 26%);
     --clr-interviewing-text: hsl(38, 95%, 82%);
     --clr-interviewing-dot: hsl(38, 92%, 65%);
+    --clr-offer: hsl(142, 50%, 24%);
+    --clr-offer-text: hsl(142, 71%, 84%);
+    --clr-offer-dot: hsl(142, 60%, 60%);
 
     --box-shadow: var(--theme-dark-shadow);
 
@@ -159,7 +170,6 @@ input {
     background-color 350ms ease-in-out,
     scale 350ms ease-in-out;
 
-  &:focus,
   &:hover,
   &:active {
     scale: 1.005;
@@ -167,6 +177,10 @@ input {
     transition:
       background-color 350ms ease-in-out,
       scale 350ms ease-in-out;
+  }
+
+  &:focus {
+    background-color: var(--clr-grey-dark);
   }
 }
 
@@ -183,12 +197,20 @@ button {
   transition: all 350ms ease-in-out;
 
   &:hover,
-  &:focus,
   &:active {
     transform: scale(1.005);
     background: var(--clr-accent-hover);
     transition: all 350ms ease-in-out;
   }
+}
+
+/* One keyboard focus ring for every interactive element. Solid accent clears
+   the 3:1 non-text contrast bar on both the light and dark surfaces, and it
+   is deliberately distinct from the hover treatment. Components that need
+   a different shape override outline-offset, never outline itself. */
+:focus-visible {
+  outline: 2px solid var(--clr-accent);
+  outline-offset: 2px;
 }
 
 /* Holds both the sun and moon icons; the style query above shows

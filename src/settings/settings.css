@@ -1,0 +1,410 @@
+/* Settings page. Reuses the dashboard's sidebar/corner/switch styles
+   (dashboard-full.css) — only the content cards, form controls, toast and
+   delete dialog are defined here. The base `button`/`input` rules in
+   _base.css are full-width accent-filled, so every control below resets
+   width/background explicitly. */
+
+.settings {
+  max-width: 54rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+
+  .settings__header {
+    h1 {
+      margin: 0 0 var(--space-2);
+      font-size: 2.5rem;
+    }
+
+    p {
+      margin: 0;
+      opacity: 0.62;
+      font-size: 0.95rem;
+    }
+  }
+}
+
+.settings__card {
+  background: var(--clr-white);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  overflow: hidden;
+}
+
+.settings__card-head {
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--clr-grey);
+
+  h2 {
+    margin: 0;
+    font-size: 1.1rem;
+  }
+}
+
+.settings__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+
+  border-top: 1px solid var(--clr-grey);
+
+  /* The card head (or the account wrapper) already provides the line above
+     the first row. */
+  .settings__card-head + &,
+  div > &:first-child {
+    border-top: 0;
+  }
+
+  &.settings__row--stack {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  &.settings__row--form,
+  &.settings__add-profile {
+    align-items: flex-end;
+  }
+}
+
+.settings__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 18rem;
+}
+
+.settings__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+
+  &.settings__title--danger {
+    color: var(--clr-rejected-text);
+  }
+}
+
+.settings__desc {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.65;
+}
+
+.settings__field {
+  flex: 1 1 18rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+
+  label {
+    font-size: 0.9rem;
+  }
+
+  input {
+    height: 3.2rem;
+    padding: 0 var(--space-4);
+    font-size: 1rem;
+  }
+}
+
+/* Profile card: avatar + name field + Save on one line. */
+.settings__name-form {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  padding: var(--space-6);
+}
+
+.settings__big-avatar {
+  flex: none;
+  width: 4rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--clr-accent);
+  color: var(--clr-white);
+  font-family: var(--heading-font-family);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+/* Buttons */
+.settings__btn {
+  width: auto;
+  flex: none;
+  height: 2.9rem;
+  padding: 0 var(--space-5);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+
+  svg {
+    width: 1.05rem;
+    aspect-ratio: 1;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  &.settings__btn--primary {
+    background: var(--clr-accent);
+    color: var(--clr-white);
+    font-weight: 700;
+
+    &:hover:not(:disabled),
+    &:focus-visible {
+      background: var(--clr-accent-hover);
+    }
+  }
+
+  &.settings__btn--ghost {
+    background: transparent;
+    color: var(--clr-dark);
+    border: 1px solid var(--clr-grey-dark);
+
+    &:hover:not(:disabled),
+    &:focus-visible {
+      background: var(--clr-grey);
+    }
+  }
+
+  &.settings__btn--danger-ghost {
+    background: transparent;
+    color: var(--clr-rejected-text);
+    border: 1px solid color-mix(in srgb, var(--clr-rejected-text) 40%, transparent);
+
+    &:hover:not(:disabled),
+    &:focus-visible {
+      background: var(--clr-rejected-transparent);
+    }
+  }
+
+  &.settings__btn--danger {
+    background: var(--clr-rejected-dot);
+    color: var(--clr-light);
+    font-weight: 700;
+
+    &:hover:not(:disabled),
+    &:focus-visible {
+      background: var(--clr-rejected-dot);
+      filter: brightness(0.9);
+    }
+  }
+}
+
+/* Job profile list */
+.settings__profiles {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.settings__profile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: calc(var(--border-radius) * 0.75);
+  background: var(--clr-grey);
+
+  .settings__profile-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+
+  .settings__btn {
+    height: 2.2rem;
+    padding: 0 var(--space-4);
+    font-size: 0.85rem;
+  }
+}
+
+.settings__badge {
+  flex: none;
+  padding: 0.25em 0.8em;
+  border-radius: 999px;
+  background: var(--clr-accent-transparent);
+  color: var(--clr-accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+/* Export: profile picker + button */
+.settings__export {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+
+  select {
+    height: 2.9rem;
+    max-width: 14rem;
+    padding: 0 var(--space-4);
+    border: 0;
+    border-radius: 999px;
+    background: var(--clr-grey);
+    color: var(--clr-dark);
+    font: inherit;
+    font-size: 0.95rem;
+  }
+}
+
+/* Inline validation, same look as onboarding's .auth-field__error. */
+.settings__error {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  margin: 0 var(--space-6) var(--space-5);
+  padding: 0.3em 0.6em;
+  border-radius: calc(var(--border-radius) / 2.5);
+  background: var(--clr-rejected-transparent);
+  color: var(--clr-rejected-text);
+  font-size: 0.85rem;
+  font-weight: 600;
+
+  svg {
+    flex: none;
+    width: 0.95rem;
+    aspect-ratio: 1;
+  }
+}
+
+.settings__field input[aria-invalid="true"] {
+  outline: 2px solid color-mix(in srgb, var(--clr-rejected-text) 55%, transparent);
+}
+
+/* Toast */
+.settings__toast {
+  position: fixed;
+  left: 50%;
+  bottom: var(--space-8);
+  z-index: 70;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 2.9rem;
+  padding: 0 var(--space-5);
+  border-radius: 999px;
+  background: var(--clr-dark);
+  color: var(--clr-light);
+  box-shadow: var(--box-shadow);
+  font-size: 0.9rem;
+  font-weight: 600;
+  animation: settings-toast-in 200ms ease-out;
+
+  svg {
+    width: 1.05rem;
+    aspect-ratio: 1;
+  }
+}
+
+@keyframes settings-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+}
+
+/* Delete-account dialog */
+.settings__dialog {
+  width: min(30rem, calc(100% - 2rem));
+  padding: var(--space-6);
+  border: 1px solid var(--clr-grey);
+  border-radius: var(--border-radius);
+  background: var(--clr-white);
+  color: var(--clr-dark);
+  box-shadow: var(--box-shadow);
+
+  &::backdrop {
+    background: rgba(15, 23, 42, 0.5);
+  }
+
+  h2 {
+    margin: var(--space-4) 0 0;
+    font-size: 1.4rem;
+  }
+
+  p {
+    margin: var(--space-2) 0 0;
+    font-size: 0.95rem;
+    line-height: 1.55;
+    opacity: 0.8;
+  }
+
+  label {
+    display: block;
+    margin-top: var(--space-5);
+    font-size: 0.9rem;
+  }
+
+  input {
+    margin-top: var(--space-2);
+    height: 3rem;
+    padding: 0 var(--space-4);
+    letter-spacing: 0.04em;
+  }
+
+  .settings__error {
+    margin: var(--space-3) 0 0;
+    opacity: 1;
+  }
+}
+
+.settings__dialog-icon {
+  width: 2.75rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--clr-rejected-transparent);
+  color: var(--clr-rejected-text);
+
+  svg {
+    width: 1.25rem;
+    aspect-ratio: 1;
+  }
+}
+
+.settings__dialog-actions {
+  margin-top: var(--space-6);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.settings__link-btn {
+  width: auto;
+  margin-top: var(--space-3);
+  padding: 0;
+  background: transparent;
+  color: var(--clr-accent);
+  font-size: 0.9rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+
+  &:hover,
+  &:focus-visible {
+    background: transparent;
+    transform: none;
+  }
+}

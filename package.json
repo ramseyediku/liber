@@ -3,6 +3,20 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test src/**/*.test.js"
+    "test": "node --test src/**/*.test.ts",
+    "config": "node scripts/generate-config.ts",
+    "build": "node scripts/build.ts",
+    "dev": "node scripts/build.ts --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "@types/chrome": "^0.3.7",
+    "@types/node": "^26.6.6",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "driver.js": "^1.10.2"
   }
 }

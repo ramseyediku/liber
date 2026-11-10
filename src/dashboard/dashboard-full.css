@@ -1,9 +1,10 @@
 @import "../styles/_base.css";
 @import "./dashboard-shared.css";
+@import "../../vendor/driver.css";
 
 .dashboard {
   display: grid;
-  grid-template-columns: 22rem 1fr 5rem;
+  grid-template-columns: 22rem 1fr;
   min-height: 100vh;
   background: var(--clr-light);
   transition: grid-template-columns 280ms ease;
@@ -15,21 +16,13 @@
   }
 
   &.is-sidebar-collapsed {
-    grid-template-columns: 5.5rem 1fr 5rem;
-  }
-
-  @media (max-width: 1024px) {
-    grid-template-columns: 20rem 1fr;
-
-    &.is-sidebar-collapsed {
-      grid-template-columns: 5.5rem 1fr;
-    }
+    grid-template-columns: 5.5rem 1fr;
   }
 
   @media (max-width: 600px) {
     grid-template-columns: 1fr;
 
-    /* Same specificity as the collapsed rules above (two classes), so
+    /* Same specificity as the collapsed rule above (two classes), so
        without this the collapsed sidebar's 5.5rem column would win on
        source order and never actually stack to one column on mobile. */
     &.is-sidebar-collapsed {
@@ -205,59 +198,50 @@
       }
     }
 
-    /* Pinned to the bottom of the sidebar, left-aligned with the nav icons
-       above it — matches the new design's sidebar footer slot. Opens the
-       same profile popover as the popup's avatar (see openProfilePopover in
-       dashboard-core.js). */
-    .dashboard__sidebar-profile {
+    /* Pinned to the bottom of the sidebar, left-aligned with the nav icon
+       above it — matches the new design's sidebar footer slot. */
+    .dashboard__sync-row {
       margin-top: auto;
+      position: relative;
       display: flex;
       align-items: center;
       gap: var(--space-3);
-      padding: var(--space-2);
-      width: 100%;
-      background: none;
-      text-align: left;
-      border-radius: 14px;
+      padding: var(--space-3) var(--space-3) var(--space-3) var(--space-1);
+      border-radius: 12px;
+      background: var(--clr-grey);
 
-      &:hover,
-      &:focus {
-        background: var(--clr-accent-transparent);
-        transform: none;
+      .dashboard__sync-icon {
+        flex: none;
+        width: var(--space-6);
+        margin-left: var(--space-1);
+        aspect-ratio: 1;
+        color: var(--clr-dark);
+        opacity: 0.7;
       }
 
-      /* Collapsed: shrink to just the avatar and center it in the column,
-         same pattern as .dashboard__sidebar-toggle above — otherwise the
-         button stays full-width and the hover highlight sits off-center. */
+      /* Collapsed: just the icon, centered like the nav icons above it. */
       .dashboard.is-sidebar-collapsed & {
-        width: auto;
-        align-self: center;
         justify-content: center;
-        padding: 0;
-        gap: 0;
+        padding: var(--space-3) 0;
 
-        &:hover,
-        &:focus {
-          background-color: none;
+        .dashboard__switch,
+        .dashboard__switch--link {
+          display: none;
         }
       }
 
       @media (max-width: 600px) {
         margin-top: 0;
         margin-left: auto;
-        width: auto;
       }
     }
 
-    .dashboard__avatar--sidebar {
-      flex: none;
-    }
-
-    .dashboard__sidebar-profile-text {
+    .dashboard__sync-text {
+      flex: 1;
+      min-width: 0;
       display: flex;
       flex-direction: column;
-      min-width: 0;
-      max-width: 10rem;
+      gap: 1px;
       overflow: hidden;
       opacity: 1;
       transition:
@@ -270,31 +254,26 @@
       }
     }
 
-    .dashboard__sidebar-profile-name,
-    .dashboard__sidebar-profile-profession {
-      margin: 0;
+    .dashboard__sync-label {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--clr-dark);
+      white-space: nowrap;
+    }
+
+    .dashboard__sync-desc {
+      font-size: 0.75rem;
+      color: var(--clr-muted);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-
-    .dashboard__sidebar-profile-name {
-      font-size: 0.95rem;
-      font-weight: 700;
-      font-family: var(--heading-font-family);
-      color: var(--clr-dark);
-    }
-
-    .dashboard__sidebar-profile-profession {
-      font-size: 0.75rem;
-      color: var(--clr-dark);
-      opacity: 0.65;
-    }
   }
 
   .dashboard__main {
+    position: relative;
     min-width: 0;
-    padding: var(--space-6);
+    padding: 5rem var(--space-6) var(--space-6);
 
     .dashboard__header {
       padding-bottom: var(--space-4);
@@ -307,8 +286,34 @@
 
     .dashboard__table-wrap {
       .dashboard__table {
+        /* Fixed layout so long company/title text truncates inside its
+           column instead of widening the table past the viewport and
+           pushing Status and Date off-screen. */
+        table-layout: fixed;
+        min-width: 44rem;
+
+        th:nth-child(1) { width: 24%; }
+        th:nth-child(2) { width: 28%; }
+        th:nth-child(3) { width: 16%; }
+        th:nth-child(4) { width: 7.5rem; }
+        th:nth-child(5) { width: 9.5rem; }
+        th:nth-child(6) { width: 8.5rem; }
+        th:nth-child(7) { width: 3.5rem; }
+
         .dashboard__col--full {
           display: table-cell;
+        }
+
+        /* With the sidebar open, a narrow window can't hold seven columns.
+           Location and the Notes button drop first (both are one click away
+           in the detail panel) so Status and Date stay on screen. */
+        @media (max-width: 1100px) {
+          min-width: 30rem;
+
+          .dashboard__col--location,
+          .dashboard__col--notes {
+            display: none;
+          }
         }
 
         /* Drops the Location/Date columns on mobile — the wrap's own
@@ -319,31 +324,6 @@
           }
         }
       }
-    }
-  }
-
-  /* Third column: theme toggle */
-  .dashboard__rail {
-    padding: var(--space-6) 0;
-    width: max-content;
-
-    .dashboard__theme-toggle {
-      width: var(--space-12);
-
-      svg {
-        width: var(--space-5);
-      }
-    }
-
-    @media (max-width: 1024px) {
-      grid-column: 1 / -1;
-      flex-direction: row;
-      justify-content: flex-end;
-      padding: 0 var(--space-6) var(--space-4);
-    }
-
-    @media (max-width: 600px) {
-      grid-column: 1;
     }
   }
 }
@@ -450,8 +430,7 @@
 
 .dashboard__detail-position {
   font-size: 0.8rem;
-  color: var(--clr-dark);
-  opacity: 0.65;
+  color: var(--clr-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -521,8 +500,7 @@
   margin-bottom: var(--space-2);
   font-size: 0.78rem;
   font-weight: 600;
-  color: var(--clr-dark);
-  opacity: 0.65;
+  color: var(--clr-muted);
 }
 
 .dashboard__detail-status {
@@ -555,7 +533,8 @@
   &[aria-checked="true"] {
     border-color: transparent;
     background: var(--clr-accent-transparent);
-    color: var(--clr-accent);
+    /* accent-hover, not accent: accent on its own 10% tint is 4.49:1 in light. */
+    color: var(--clr-accent-hover);
     font-weight: 600;
 
     &:hover,
@@ -584,8 +563,7 @@
   font-size: 0.9rem;
 
   dt {
-    color: var(--clr-dark);
-    opacity: 0.65;
+    color: var(--clr-muted);
   }
 
   dd {
@@ -603,8 +581,7 @@
   > span {
     font-size: 0.78rem;
     font-weight: 600;
-    color: var(--clr-dark);
-    opacity: 0.65;
+    color: var(--clr-muted);
   }
 }
 
@@ -624,13 +601,7 @@
   caret-color: var(--clr-accent);
 
   &::placeholder {
-    color: var(--clr-dark);
-    opacity: 0.45;
-  }
-
-  &:focus,
-  &:hover {
-    outline: none;
+    color: var(--clr-muted);
   }
 }
 
@@ -693,4 +664,111 @@
 
 .dashboard__table tbody tr:hover .dashboard__delete {
   opacity: 1;
+}
+
+/* First-run tour (driver.js) — see tour.ts. Restyles driver's own markup
+   to match the rest of the app instead of its default white/grey look.
+   The arrow's per-side rules each override only their one visible color
+   (the others stay transparent, set by driver.css) — anything broader
+   would repaint all four and square off the triangle. */
+.liber-tour-popover {
+  font-family: var(--body-font-family);
+  color: var(--clr-dark);
+  background: var(--clr-white);
+  border: 1px solid var(--clr-grey-dark);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  max-width: 21rem;
+  padding: var(--space-5);
+}
+
+.liber-tour-popover .driver-popover-title {
+  font-family: var(--heading-font-family);
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--clr-dark);
+  padding-right: var(--space-6);
+}
+
+.liber-tour-popover .driver-popover-description {
+  margin-top: var(--space-2);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--clr-dark);
+  opacity: 0.8;
+}
+
+.liber-tour-popover .driver-popover-close-btn {
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: calc(var(--border-radius) / 2);
+  color: var(--clr-dark);
+  opacity: 0.55;
+  font-size: 1.1rem;
+
+  &:hover,
+  &:focus-visible {
+    opacity: 1;
+    background: var(--clr-grey);
+  }
+}
+
+.liber-tour-popover .driver-popover-footer {
+  margin-top: var(--space-5);
+}
+
+.liber-tour-popover .driver-popover-progress-text {
+  color: var(--clr-muted);
+  font-size: 0.8rem;
+}
+
+.liber-tour-popover .driver-popover-footer-btn {
+  width: auto;
+  padding: 0 var(--space-4);
+  height: 2.25rem;
+  border: 1px solid var(--clr-grey-dark);
+  border-radius: calc(var(--border-radius) / 2);
+  background: transparent;
+  color: var(--clr-dark);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 2.25rem;
+  transition: background-color 150ms ease-in-out;
+
+  &:hover,
+  &:focus {
+    background: var(--clr-grey);
+  }
+}
+
+.liber-tour-popover .driver-popover-next-btn,
+.liber-tour-popover .driver-popover-done-btn {
+  border-color: transparent;
+  background: var(--clr-accent);
+  color: var(--clr-white);
+
+  &:hover,
+  &:focus {
+    background: var(--clr-accent-hover);
+  }
+}
+
+.liber-tour-popover .driver-popover-arrow-side-left {
+  border-left-color: var(--clr-white);
+}
+
+.liber-tour-popover .driver-popover-arrow-side-right {
+  border-right-color: var(--clr-white);
+}
+
+.liber-tour-popover .driver-popover-arrow-side-top {
+  border-top-color: var(--clr-white);
+}
+
+.liber-tour-popover .driver-popover-arrow-side-bottom {
+  border-bottom-color: var(--clr-white);
 }

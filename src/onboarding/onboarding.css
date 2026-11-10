@@ -84,50 +84,29 @@ label {
     width: 100%;
   }
 
-  .setup-progress {
-    width: 100%;
-    max-width: 20rem;
-  }
-
-  .setup-progress__track {
-    width: 100%;
-    height: 0.4rem;
-    border-radius: 999px;
-    background: var(--clr-grey);
-    overflow: hidden;
-  }
-
-  .setup-progress__fill {
-    height: 100%;
-    width: 0%;
-    border-radius: 999px;
-    background: var(--clr-accent);
-    transition: width 0.2s ease;
-  }
-
-  .setup-status {
-    font-size: 0.85rem;
-    opacity: 0.7;
-  }
-
-  .setup-progress--error .setup-progress__track {
-    background: var(--clr-rejected);
-  }
-
-  .setup-progress--error .setup-progress__fill {
-    background: var(--clr-rejected-dot);
-  }
-
-  .setup-progress--error ~ .setup-status {
-    color: var(--clr-rejected-text);
-    opacity: 1;
-  }
-
   .setup-state button {
     width: auto;
     min-width: 10rem;
     margin-top: var(--space-4);
   }
+}
+
+.onboarding__error {
+  margin-block: var(--space-3) 0;
+  font-size: 0.9rem;
+  color: var(--clr-rejected-text);
+}
+
+.onboarding__link-btn {
+  margin-top: var(--space-3);
+  width: auto;
+  background: none;
+  border: none;
+  color: var(--clr-accent);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-decoration: underline;
 }
 
 @keyframes confirmation-in {
@@ -138,5 +117,165 @@ label {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+/* --- Auth pages (login/signup/reset-password) --------------------------
+   Share .onboarding's box but left-align instead of center, and lead with
+   a back link instead of the logo image. */
+
+.onboarding--auth {
+  text-align: left;
+
+  h1,
+  h1 + p {
+    text-align: left;
+  }
+
+  h1 {
+    font-size: 2.75rem;
+  }
+}
+
+.auth-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--clr-dark);
+  opacity: 0.65;
+  font-size: 0.9rem;
+  font-weight: 500;
+
+  svg {
+    width: 1rem;
+    aspect-ratio: 1;
+  }
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+.auth-field {
+  margin-block: var(--space-10) var(--space-1);
+
+  label {
+    margin: 0 0 var(--space-1);
+  }
+}
+
+.auth-field__control {
+  position: relative;
+  display: flex;
+}
+
+/* Room for the trailing valid-checkmark icon. */
+.auth-field__control--checkable input {
+  padding-right: var(--space-10);
+}
+
+/* Room for both the checkmark and the show/hide password button. */
+.auth-field__control--toggle input {
+  padding-right: calc(var(--space-10) + 2.6em);
+}
+
+.auth-field__check {
+  position: absolute;
+  right: var(--space-4);
+  top: 50%;
+  translate: 0 -50%;
+  width: 1.5rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--clr-offer);
+  color: var(--clr-offer-text);
+  pointer-events: none;
+
+  svg {
+    width: 0.85rem;
+    aspect-ratio: 1;
+  }
+}
+
+.auth-field__toggle {
+  position: absolute;
+  right: var(--space-2);
+  top: 50%;
+  translate: 0 -50%;
+  width: 2.6em;
+  aspect-ratio: 1;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--clr-dark);
+  opacity: 0.65;
+  border-radius: calc(var(--border-radius) / 1.6);
+
+  svg {
+    width: 1.1rem;
+    aspect-ratio: 1;
+  }
+
+  &:hover,
+  &:focus {
+    transform: none;
+    opacity: 1;
+    background: var(--clr-grey);
+  }
+}
+
+.auth-field__error {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  margin-top: var(--space-2);
+  padding: 0.3em 0.6em;
+  border-radius: calc(var(--border-radius) / 2.5);
+  background: var(--clr-rejected-transparent);
+  color: var(--clr-rejected-text);
+  font-size: 0.8rem;
+  font-weight: 600;
+
+  svg {
+    width: 0.85rem;
+    aspect-ratio: 1;
+  }
+}
+
+/* Invalid/valid rings reuse the status colors above as a tinted inset
+   border instead of a new palette entry. */
+.auth-field__control input[aria-invalid="true"] {
+  outline: 2px solid color-mix(in srgb, var(--clr-rejected-text) 55%, transparent);
+}
+
+.auth-field__control input[data-valid="true"] {
+  outline: 2px solid color-mix(in srgb, var(--clr-offer-dot) 55%, transparent);
+}
+
+.auth-forgot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+
+  a {
+    color: var(--clr-accent);
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+}
+
+.auth-switch {
+  margin-top: var(--space-6);
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--clr-muted);
+
+  a {
+    color: var(--clr-accent);
+    font-weight: 600;
   }
 }

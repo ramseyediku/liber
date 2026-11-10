@@ -61,9 +61,8 @@
     position: relative;
     font-weight: 500;
     font-size: 0.8rem;
-    opacity: 0.62;
     padding: var(--space-4) var(--space-4) var(--space-3);
-    color: var(--clr-dark);
+    color: var(--clr-muted);
   }
 
   & .dashboard__col--full {
@@ -165,13 +164,13 @@
   }
 }
 
-.dashboard__status-pill--ghosted {
-  background-color: var(--clr-ghosted);
+.dashboard__status-pill--withdrawn {
+  background-color: var(--clr-withdrawn);
   color: var(--clr-dark);
 
   &:hover,
   &:focus {
-    background-color: var(--clr-ghosted);
+    background-color: var(--clr-withdrawn);
   }
 }
 
@@ -182,6 +181,16 @@
   &:hover,
   &:focus {
     background-color: var(--clr-interviewing);
+  }
+}
+
+.dashboard__status-pill--offer {
+  background-color: var(--clr-offer);
+  color: var(--clr-offer-text);
+
+  &:hover,
+  &:focus {
+    background-color: var(--clr-offer);
   }
 }
 
@@ -240,12 +249,16 @@
   background: var(--clr-rejected-dot);
 }
 
-.dashboard__status-dot--ghosted {
-  background: var(--clr-ghosted-dot);
+.dashboard__status-dot--withdrawn {
+  background: var(--clr-withdrawn-dot);
 }
 
 .dashboard__status-dot--interviewing {
   background: var(--clr-interviewing-dot);
+}
+
+.dashboard__status-dot--offer {
+  background: var(--clr-offer-dot);
 }
 
 .dashboard__delete {
@@ -259,7 +272,7 @@
   border: none;
   color: var(--clr-dark);
   cursor: pointer;
-  opacity: 0.45;
+  opacity: 0.6;
   /* Overrides the global button transition, which delayed the icon fill. */
   transition: none;
 
@@ -307,8 +320,7 @@
 }
 
 .dashboard__empty {
-  color: var(--clr-dark);
-  opacity: 0.65;
+  color: var(--clr-muted);
 }
 
 /* The "Tracking my applications for" label is dimmed; the profession
@@ -433,13 +445,7 @@
     caret-color: var(--clr-accent);
 
     &::placeholder {
-      color: var(--clr-dark);
-      opacity: 0.45;
-    }
-
-    &:focus,
-    &:hover {
-      outline: none;
+      color: var(--clr-muted);
     }
   }
 }
@@ -472,8 +478,131 @@
 .dashboard__profile-popover-profession {
   margin: var(--space-1) 0 0;
   font-size: 0.85rem;
+  color: var(--clr-muted);
+}
+
+.dashboard__profile-popover-signout {
+  width: 100%;
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-1);
+  border: 1px solid var(--clr-grey);
+  border-radius: calc(var(--border-radius) - 0.25rem);
+  background: transparent;
   color: var(--clr-dark);
-  opacity: 0.65;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+
+  svg {
+    width: 1rem;
+    aspect-ratio: 1;
+    opacity: 0.75;
+  }
+
+  &:hover,
+  &:focus {
+    transform: none;
+    background: var(--clr-grey);
+  }
+}
+
+/* Header's top-right corner (full view only): theme toggle + either the
+   "Log in" link (anonymous session) or the account avatar (permanent one).
+   See renderAccountArea in dashboard-core.ts. */
+.dashboard__corner {
+  position: absolute;
+  top: var(--space-6);
+  right: var(--space-7);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.dashboard__login-btn {
+  height: 2.9rem;
+  padding: 0 var(--space-6);
+  border-radius: 999px;
+  background: var(--clr-accent);
+  color: var(--clr-white);
+  font-weight: 700;
+  font-size: 0.95rem;
+  display: inline-flex;
+  align-items: center;
+
+  &:hover,
+  &:focus {
+    background: var(--clr-accent-hover);
+  }
+}
+
+.dashboard__avatar--account {
+  cursor: pointer;
+
+}
+
+/* Generic on/off switch, shared with the Settings page. */
+.dashboard__switch {
+  width: 2.9rem;
+  height: 1.75rem;
+  flex: none;
+  padding: 3px;
+  border: none;
+  border-radius: 999px;
+  background: var(--clr-grey-dark);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  transition: background-color 200ms ease-in-out;
+
+  &:hover,
+  &:focus {
+    transform: none;
+  }
+
+  &.dashboard__switch--on {
+    background: var(--clr-accent);
+  }
+
+  &.dashboard__switch--link {
+    text-decoration: none;
+  }
+}
+
+.dashboard__switch-knob {
+  width: 1.35rem;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: var(--clr-white);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  .dashboard__switch--on & {
+    transform: translateX(1.15rem);
+  }
+}
+
+.dashboard__signed-out {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-4);
+  padding: var(--space-10) var(--space-6);
+  text-align: center;
+
+  p {
+    margin: 0;
+    color: var(--clr-dark);
+    opacity: 0.75;
+  }
+
+  button {
+    width: auto;
+    min-width: 8rem;
+  }
 }
 
 /* Floating pill nav, centered under the table and pinned to the bottom of
@@ -671,8 +800,7 @@
 
 .dashboard__log-time {
   flex: 0 0 auto;
-  color: var(--clr-dark);
-  opacity: 0.5;
+  color: var(--clr-muted);
 }
 
 .dashboard__log-page {
@@ -691,15 +819,13 @@
   flex: 1 1 100%;
   white-space: pre-wrap;
   word-break: break-word;
-  color: var(--clr-dark);
-  opacity: 0.65;
+  color: var(--clr-muted);
 }
 
 .dashboard__logs-empty {
   padding: var(--space-6) var(--space-5);
   text-align: center;
-  color: var(--clr-dark);
-  opacity: 0.65;
+  color: var(--clr-muted);
   white-space: normal;
 }
 
@@ -724,4 +850,63 @@
     opacity: 0;
     transform: scale(0.85) translateY(-0.15rem);
   }
+}
+
+/* Undo snackbar for delete and status changes. */
+.dashboard__toast {
+  position: fixed;
+  left: 50%;
+  bottom: var(--space-3);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: max-content;
+  max-width: calc(100vw - 1.5rem);
+  white-space: nowrap;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-5);
+  border-radius: calc(var(--border-radius) * 2);
+  background: var(--clr-dark);
+  color: var(--clr-light);
+  font-size: 0.85rem;
+  font-weight: 600;
+  box-shadow: var(--box-shadow);
+  translate: -50% 0;
+  animation: dashboard-toast-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dashboard__toast-undo {
+  width: auto;
+  padding: var(--space-2) var(--space-4);
+  border-radius: calc(var(--border-radius) * 2);
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+
+  &:hover {
+    background: color-mix(in srgb, var(--clr-light) 18%, transparent);
+    transform: none;
+  }
+
+  &:focus-visible {
+    outline-color: var(--clr-light);
+  }
+}
+
+@keyframes dashboard-toast-in {
+  from {
+    opacity: 0;
+    translate: -50% 0.75rem;
+  }
+}
+
+/* Amber follow-up cue under the date in a table row. The popup has its own
+   .dashboard__card-stale. */
+.dashboard__cell-stale {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--clr-interviewing-text);
 }
