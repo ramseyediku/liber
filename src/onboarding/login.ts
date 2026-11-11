@@ -1,4 +1,5 @@
 // Sign in with an existing email/password account.
+import { adoptAccountJobProfile, markOnboarded } from "../shared/storage.ts";
 import { getSupabaseClient } from "../shared/supabaseClient.ts";
 
 LiberTheme.initToggle(document.getElementById("theme-toggle"));
@@ -68,6 +69,8 @@ form.addEventListener("submit", async (event) => {
       authError.classList.remove("hidden");
       return;
     }
+    await markOnboarded();
+    await adoptAccountJobProfile();
     window.location.href = "../dashboard/dashboard-full.html";
   } finally {
     submitBtn.disabled = false;

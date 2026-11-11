@@ -18,3 +18,12 @@ export async function appendLog(entry: Omit<LogEntry, "timestamp">): Promise<voi
 export async function clearLogs(): Promise<void> {
   await browser.storage.session.remove(LOGS_KEY);
 }
+
+export async function getLogsForTab(tabId: number): Promise<LogEntry[]> {
+  return (await getLogs()).filter((entry) => entry.tabId === tabId);
+}
+
+export async function clearLogsForTab(tabId: number): Promise<void> {
+  const remaining = (await getLogs()).filter((entry) => entry.tabId !== tabId);
+  await browser.storage.session.set({ [LOGS_KEY]: remaining });
+}

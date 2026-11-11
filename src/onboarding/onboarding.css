@@ -279,3 +279,16 @@ label {
     font-weight: 600;
   }
 }
+
+/* Welcome page: room under the label, and the login link left-aligned
+   right under the input. */
+#onboarding-form {
+  label {
+    margin-bottom: var(--space-3);
+  }
+
+  .auth-switch {
+    margin-top: var(--space-3);
+    text-align: left;
+  }
+}

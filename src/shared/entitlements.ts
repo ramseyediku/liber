@@ -3,6 +3,12 @@
 // client, so this is read-only on purpose.
 import { ensureSession, getSupabaseClient } from "./supabaseClient.ts";
 
+// Extra job profiles a free account may add on top of the default one every
+// account starts with ("General", or the role picked at setup). 0 = free
+// accounts can't add any; paid accounts are unlimited. Mirrors the
+// server's enforce_profile_limit trigger so the UI can say no up front.
+export const FREE_EXTRA_JOB_PROFILES = 0;
+
 export async function isPaid(): Promise<boolean> {
   await ensureSession();
   const supabase = getSupabaseClient();

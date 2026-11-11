@@ -213,20 +213,20 @@
               </article>
 
               <article class="settings__plan settings__plan--premium" id="plan-premium">
-                <p class="settings__plan-tag" id="plan-premium-tag">Recommended</p>
+                <p class="settings__plan-tag hidden" id="plan-premium-tag">Your plan</p>
                 <h3>Premium</h3>
                 <p class="settings__plan-price">£3.99</p>
                 <p class="settings__plan-note">One-time payment, no subscription</p>
-                <button type="button" class="settings__btn settings__btn--primary settings__plan-cta" id="plan-upgrade">
-                  Unlock Liber
-                </button>
                 <ul class="settings__perks">
+                  <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="../shared/icons.svg#icon-check"></use></svg><span><strong>Everything in Free</strong> including cloud sync and export</span></li>
                   <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="../shared/icons.svg#icon-check"></use></svg><span><strong>Unlimited applications</strong> with no cap on your history</span></li>
                   <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="../shared/icons.svg#icon-check"></use></svg><span><strong>Unlimited job profiles</strong> for every kind of role you're after</span></li>
                   <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="../shared/icons.svg#icon-check"></use></svg><span><strong>Unlimited automatic captures</strong> on any job page</span></li>
-                  <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="../shared/icons.svg#icon-check"></use></svg><span><strong>Everything in Free</strong> including cloud sync and export</span></li>
                   <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="../shared/icons.svg#icon-check"></use></svg><span><strong>One payment, no subscription</strong> pay once and keep it</span></li>
                 </ul>
+                <button type="button" class="settings__btn settings__btn--primary settings__plan-cta" id="plan-upgrade">
+                  Unlock Liber
+                </button>
               </article>
             </div>
             <p class="settings__error hidden" id="plan-error" role="alert">
@@ -372,6 +372,21 @@
           <!-- Developer: shown only for an unpacked install (see settings.ts) -->
           <section class="settings__card hidden" id="dev-card" role="tabpanel" hidden aria-labelledby="tab-dev">
             <div class="settings__card-head"><h2>Developer</h2></div>
+            <div class="settings__row">
+              <div class="settings__text">
+                <span class="settings__title" id="logbtn-label">Capture log button</span>
+                <span class="settings__desc">Shows a floating button on every page that opens a log of what each capture did, including whether Claude was called or a stored site structure was used.</span>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                class="dashboard__switch"
+                id="logbtn-switch"
+                aria-checked="true"
+                aria-labelledby="logbtn-label">
+                <span class="dashboard__switch-knob"></span>
+              </button>
+            </div>
             <div class="settings__row">
               <div class="settings__text">
                 <span class="settings__title">Demo data</span>

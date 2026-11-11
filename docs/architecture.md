@@ -645,3 +645,39 @@ whole dedup check stays O(n) with a plain hash lookup, same complexity class
 On a key collision, `addJob` returns `null` instead of inserting —
 `handleSaveRequested` reports this back to the user as the `"duplicate"`
 outcome rather than silently doing nothing.
+
+## Capture: JSON-LD → stored site structure → Claude
+
+On "yes" to the save prompt, `background.ts` resolves the job's fields from the
+cheapest source that works, in order:
+
+1. **The page's own JSON-LD** (free, no network).
+2. **A stored site structure.** `site_structures` (shared across users, one
+   `is_active` row per hostname) holds CSS selectors for jobTitle / company /
+   location. `content.ts` runs them against the *captured* HTML (not the live
+   page, which may have changed since the click). Title and company are
+   required; location is optional.
+3. **Claude** (`extract-job-fields`), given the cleaned HTML of the job
+   (header/footer/nav, scripts, media, hidden and empty nodes stripped, attributes
+   cut to id/class/data-*/itemprop/role/aria-label; capped at 24k chars). It
+   returns the fields and a selector per field.
+
+**Learning.** Claude's proposed selectors are run against the same captured
+HTML; only if they reproduce Claude's own answer (`selectorsReproduce`) does
+the `site-structure` function store them (new version, made active, previous
+active version switched off). **Scoring.** Each use of an active structure is
+reported back (`report`); 3+ failures exceeding its successes switches it off so
+the site falls back to Claude and re-learns.
+
+Why selectors-on-captured-HTML: the service worker has no DOM, and learning and
+applying then see exactly the same input. Why only selectors are stored: no page
+content, URLs or user data ever go into the shared table. **Known risk:** the
+table is shared and the extension asks the function to write it, so a hostile
+client could submit bad selectors for a site. Writes are limited to validated
+plain-CSS selectors and a bad one is switched off by failure reports, but
+promotion could be tightened (e.g. require agreement from two users).
+
+The floating capture-log button (`content.ts`, shadow DOM) shows each tab's
+log: what was captured, which source answered, whether Claude was called, and the
+save outcome. It's on by default for unpacked installs; Settings → Developer
+toggles it.

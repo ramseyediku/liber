@@ -1,7 +1,13 @@
-// First-run page: name/profession only, no auth (storage.ts's setProfile —
-// stored in the current session's user_metadata, anonymous or not). Signing
-// in/up now lives on their own pages — see login.ts/signup.ts.
-import { getProfile, setProfile } from "../shared/storage.ts";
+// First-run page: your name (becomes the display name, changeable later in
+// Settings) and an optional role, no account needed. The role becomes the
+// first job profile (storage.ts's renameActiveJobProfile). People who already
+// have an account can log in from here instead.
+import {
+  getProfile,
+  markOnboarded,
+  renameActiveJobProfile,
+  setProfile,
+} from "../shared/storage.ts";
 import { ensureSession } from "../shared/supabaseClient.ts";
 
 LiberTheme.initToggle(document.getElementById("theme-toggle"));
@@ -20,9 +26,8 @@ function toTitleCase(text: string): string {
 
 async function prefillIfOnboarded(): Promise<void> {
   const profile = await getProfile();
-  if (!profile) return;
-  nameInput.value = profile.name || "";
-  professionInput.value = profile.profession || "";
+  if (profile?.name) nameInput.value = profile.name;
+  if (profile?.profession) professionInput.value = profile.profession;
 }
 
 form.addEventListener("submit", async (event) => {
@@ -30,11 +35,14 @@ form.addEventListener("submit", async (event) => {
 
   const name = nameInput.value.trim();
   const profession = toTitleCase(professionInput.value.trim());
-  if (!name || !profession) return;
+  if (!name) return;
 
   submitBtn.disabled = true;
   try {
-    await setProfile({ name, profession });
+    const profile = await getProfile();
+    await setProfile({ name, profession: profession || profile?.profession || "" });
+    if (profession) await renameActiveJobProfile(profession);
+    await markOnboarded();
     // ?tour=1 tells the dashboard to run the first-run tour once — see
     // dashboard-full.ts.
     window.location.href = "../dashboard/dashboard-full.html?tour=1";

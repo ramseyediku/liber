@@ -459,8 +459,10 @@ deleteForm.addEventListener("submit", async (event) => {
   try {
     await deleteAccount();
     window.location.href = "../onboarding/onboarding.html";
-  } catch (err) {
-    setError(deleteError, errorMessage(err));
+  } catch {
+    // Deliberately generic: the real cause (network, server, permissions)
+    // isn't actionable for the user and shouldn't be shown raw.
+    setError(deleteError, "Something went wrong. Please try again.");
     deleteConfirmBtn.disabled = false;
   }
 });
@@ -504,7 +506,7 @@ async function renderPlan(): Promise<void> {
     : "You're on the free plan. Unlock Liber once to remove every limit.";
   planFreeNote.textContent = paid ? "Included" : "Your current plan";
   planPremium.classList.toggle("settings__plan--current", paid);
-  planPremiumTag.textContent = paid ? "Your plan" : "Recommended";
+  planPremiumTag.classList.toggle("hidden", !paid);
   planUpgrade.classList.toggle("hidden", paid);
   // Restore-code UI disabled for now:
   // restoreForm.classList.toggle("hidden", paid);
@@ -561,6 +563,22 @@ void renderPlan();
 if (isDevInstall()) {
   el("dev-card").classList.remove("hidden");
   el("tab-dev").classList.remove("hidden");
+
+  // Floating capture-log button (content.ts). On by default for dev installs.
+  const LOG_BUTTON_FLAG = "liber_show_log_button";
+  const logSwitch = el<HTMLButtonElement>("logbtn-switch");
+  const paintLogSwitch = (on: boolean) => {
+    logSwitch.setAttribute("aria-checked", String(on));
+    logSwitch.classList.toggle("dashboard__switch--on", on);
+  };
+  (browser.storage.local.get(LOG_BUTTON_FLAG) as Promise<Record<string, unknown>>).then((r) =>
+    paintLogSwitch(typeof r[LOG_BUTTON_FLAG] === "boolean" ? (r[LOG_BUTTON_FLAG] as boolean) : true),
+  );
+  logSwitch.addEventListener("click", async () => {
+    const next = logSwitch.getAttribute("aria-checked") !== "true";
+    await browser.storage.local.set({ [LOG_BUTTON_FLAG]: next });
+    paintLogSwitch(next);
+  });
 
   el("demo-load").addEventListener("click", async () => {
     const count = await seedDemoJobs();

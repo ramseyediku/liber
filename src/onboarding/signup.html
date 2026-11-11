@@ -64,6 +64,19 @@
 
       <form id="signup-form" method="post">
         <div class="auth-field">
+          <label for="name">Display name</label>
+          <div class="auth-field__control">
+            <input type="text" name="name" id="name" autocomplete="nickname" placeholder="Alex Morgan" required />
+          </div>
+          <p class="auth-field__error hidden" id="name-error">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <use href="../shared/icons.svg#icon-alert-circle"></use>
+            </svg>
+            <span>Enter a display name</span>
+          </p>
+        </div>
+
+        <div class="auth-field">
           <label for="email">Email</label>
           <div class="auth-field__control auth-field__control--checkable">
             <input type="email" name="email" id="email" autocomplete="username" inputmode="email" placeholder="you@example.com" required />

@@ -1128,7 +1128,7 @@ depends on which size is loaded.
   — deliberately deferred by the Claude API + Supabase migration above;
   data is already shared across sign-ins via direct reads, just not
   pushed live across tabs/devices yet.
-- Wire `site_structures` into the extraction path (check for an active
+- ~~Wire `site_structures` into the extraction path~~ Done — see docs/architecture.md, "Capture: JSON-LD → stored site structure → Claude". (was: check for an active
   per-hostname structure before falling back to Claude) — see "Migrate to
   Claude API + Supabase" above for why this wasn't done yet.
 - Wire `entitlements`/paywall gating — also deferred, see above.

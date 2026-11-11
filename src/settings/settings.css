@@ -526,7 +526,7 @@
 
 .settings__plan-cta {
   width: 100%;
-  margin: var(--space-2) 0 var(--space-3);
+  margin-top: var(--space-3);
 }
 
 .settings__perks {

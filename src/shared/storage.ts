@@ -8,6 +8,7 @@
 // authenticated caller, anonymous included), falling back to the cache
 // when offline. See docs/roadmap.md for the full reasoning.
 import { ensureSession, getSupabaseClient } from "./supabaseClient.ts";
+import { FREE_EXTRA_JOB_PROFILES, isPaid } from "./entitlements.ts";
 import { isSyncEnabled } from "./sync.ts";
 import type { Job, JobProfile, JobStatus, Profile, SaveJobResult } from "./types.ts";
 
@@ -29,6 +30,7 @@ export const STATUS_META: Record<JobStatus, { label: string; color: string }> = 
 
 const JOBS_CACHE_KEY = "liber_jobs";
 const DEFAULT_PROFILE_KEY = "liber_default_profile";
+const ONBOARDED_KEY = "liber_onboarded";
 
 function rowToJob(row: any): Job {
   return {
@@ -115,6 +117,14 @@ export async function createJobProfile(
   name: string,
 ): Promise<{ status: "saved"; profile: JobProfile } | { status: "limit" }> {
   await ensureSession();
+
+  // Free accounts only have the default profile (FREE_EXTRA_JOB_PROFILES = 0
+  // extras); say no before making a server call.
+  if (!(await isPaid())) {
+    const existing = (await getAllJobProfiles()).filter((p) => !p.deleted).length;
+    if (existing - 1 >= FREE_EXTRA_JOB_PROFILES) return { status: "limit" };
+  }
+
   const supabase = getSupabaseClient();
 
   const { data, error } = await supabase.functions.invoke<{ status: string; profile?: any }>(
@@ -125,6 +135,49 @@ export async function createJobProfile(
   if (data?.status === "limit") return { status: "limit" };
   if (!data?.profile) throw new Error("create-job-profile returned no profile");
   return { status: "saved", profile: rowToJobProfile(data.profile) };
+}
+
+// First-run role: renames the active job profile in place (same id) so the
+// role the user picked becomes their profile. Purely local — the profile
+// reaches the server with its name on the first save (record-save).
+export async function renameActiveJobProfile(name: string): Promise<void> {
+  const active = await getOrCreateDefaultProfile();
+  await setActiveJobProfile({ id: active.id, name });
+}
+
+// After logging in to an existing account: this device's local profile id
+// won't be one of the account's, so the dashboard (which shows only the
+// active profile's jobs) would look empty. Adopt the account's first profile.
+export async function adoptAccountJobProfile(): Promise<void> {
+  await ensureSession();
+  const supabase = getSupabaseClient();
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData?.user?.id;
+  if (!userId) return;
+  const { data, error } = await supabase
+    .from("job_profiles")
+    .select()
+    .eq("user_id", userId)
+    .eq("deleted", false)
+    .order("created_at", { ascending: true });
+  if (error || !data?.length) return;
+  const active = await getOrCreateDefaultProfile();
+  if (data.some((row: any) => row.id === active.id)) return;
+  await setActiveJobProfile({ id: data[0].id, name: data[0].name });
+}
+
+// Makes sure the active (default) job profile exists server-side. Until now it
+// only reached the server as a side effect of the first saved job, so a brand
+// new account had no profile row to show or count. Safe to repeat: the
+// function upserts on the profile id. Not routed through createJobProfile,
+// whose free-plan check is for *extra* profiles.
+export async function ensureActiveJobProfileExists(): Promise<void> {
+  await ensureSession();
+  const active = await getOrCreateDefaultProfile();
+  const { error } = await getSupabaseClient().functions.invoke("create-job-profile", {
+    body: { profileId: active.id, name: active.name },
+  });
+  if (error) throw error;
 }
 
 export async function setActiveJobProfile(profile: { id: string; name: string }): Promise<void> {
@@ -334,8 +387,15 @@ export async function setProfile(profile: Profile): Promise<void> {
 // Onboarded = has filled in the Welcome form — every session already has
 // an identity (anonymous or not), so this no longer implies "signed up."
 export async function isOnboarded(): Promise<boolean> {
+  const result = (await browser.storage.local.get(ONBOARDED_KEY)) as Record<string, boolean>;
+  if (result[ONBOARDED_KEY]) return true;
+  // Installs from before the flag existed: a filled-in profile counted.
   const profile = await getProfile();
   return !!(profile && profile.name && profile.profession);
+}
+
+export async function markOnboarded(): Promise<void> {
+  await browser.storage.local.set({ [ONBOARDED_KEY]: true });
 }
 
 // Permanently deletes the account server-side (jobs, profiles, auth user),
@@ -347,8 +407,13 @@ export async function deleteAccount(): Promise<void> {
   const { error } = await supabase.functions.invoke("delete-account");
   if (error) throw error;
 
-  // The server-side signOut can fail now that the user row is gone — the
-  // storage wipe below drops the persisted session either way.
-  await supabase.auth.signOut();
+  // The account is already gone server-side, so nothing below may surface as
+  // a failure. signOut can fail now that the user row is gone; the storage
+  // wipe drops the persisted session either way.
+  try {
+    await supabase.auth.signOut();
+  } catch {
+    // ignored — see above
+  }
   await browser.storage.local.clear();
 }

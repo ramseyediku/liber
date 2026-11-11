@@ -224,11 +224,9 @@ async function renderAccountArea(): Promise<void> {
 // --- Popovers ---------------------------------------------------------------
 
 async function openProfilePopover(anchorBtn: HTMLElement): Promise<void> {
-  if (activePopover) {
-    closeActivePopover();
-    return;
-  }
-  if (!profileData) return;
+  // Already open: clicking its own button does nothing. Clicking anywhere
+  // else closes it (handleOutsideClick).
+  if (activePopover) return;
   const paid = await isPaid().catch(() => false);
   if (activePopover) return; // a second click landed while we were checking
 
@@ -237,7 +235,7 @@ async function openProfilePopover(anchorBtn: HTMLElement): Promise<void> {
 
   const name = document.createElement("p");
   name.className = "dashboard__profile-popover-name";
-  name.textContent = profileData.name;
+  name.textContent = profileData?.name || "Your account";
   popover.appendChild(name);
 
   const plan = document.createElement("span");
@@ -321,10 +319,9 @@ async function openProfilePopover(anchorBtn: HTMLElement): Promise<void> {
 }
 
 function openStatusMenu(job: Job, pill: HTMLElement): void {
-  if (activePopover) {
-    closeActivePopover();
-    return;
-  }
+  // Already open: clicking its own button does nothing. Clicking anywhere
+  // else closes it (handleOutsideClick).
+  if (activePopover) return;
 
   const menu = document.createElement("div");
   menu.className = "dashboard__popover dashboard__status-menu";
@@ -543,10 +540,9 @@ async function switchJobProfile(profile: JobProfile): Promise<void> {
 // Dropdown on the greeting pill: pick which job profile the dashboard shows,
 // or add one (paid plan only — free accounts see the entry locked).
 async function openProfileSwitcher(anchor: HTMLElement): Promise<void> {
-  if (activePopover) {
-    closeActivePopover();
-    return;
-  }
+  // Already open: clicking its own button does nothing. Clicking anywhere
+  // else closes it (handleOutsideClick).
+  if (activePopover) return;
   const [profiles, paid] = await Promise.all([getAllJobProfiles(), isPaid()]);
 
   const menu = document.createElement("div");
@@ -653,7 +649,8 @@ async function openProfileSwitcher(anchor: HTMLElement): Promise<void> {
 }
 
 function openNotesPopover(job: Job, anchorBtn: HTMLElement): void {
-  if (activePopover) closeActivePopover();
+  // Already open: clicking its own button does nothing.
+  if (activePopover) return;
 
   const popover = document.createElement("div");
   popover.className = "dashboard__popover dashboard__notes-popover";
@@ -944,7 +941,8 @@ function buildRow(job: Job, jobs: Job[]): HTMLElement {
   if (stale) {
     const staleEl = document.createElement("span");
     staleEl.className = "dashboard__cell-stale";
-    staleEl.textContent = stale;
+    staleEl.classList.toggle("dashboard__stale--overdue", stale.overdue);
+    staleEl.textContent = stale.text;
     dateTd.appendChild(staleEl);
   }
   tr.appendChild(dateTd);
@@ -987,11 +985,16 @@ function buildEmptyRow(): HTMLElement {
 // Applied for this long with no status change reads as "follow up".
 const STALE_AFTER_DAYS = 14;
 
+// Past this long the cue turns red: it's unlikely to be answered now.
+const OVERDUE_AFTER_DAYS = 90;
+
 // "Waiting N days" for an Applied job past the threshold, otherwise null.
-function staleLabel(job: Job): string | null {
+// `overdue` switches the cue from amber to red (see the stale CSS classes).
+function staleLabel(job: Job): { text: string; overdue: boolean } | null {
   if (job.status !== "applied") return null;
   const days = daysSince(parseDateAdded(job.dateAdded));
-  return days >= STALE_AFTER_DAYS ? `Waiting ${days} days` : null;
+  if (days < STALE_AFTER_DAYS) return null;
+  return { text: `Waiting ${days} days`, overdue: days >= OVERDUE_AFTER_DAYS };
 }
 
 // Only built in cardMode (the popup). The title area opens the full dashboard;
@@ -1027,7 +1030,8 @@ function buildCard(job: Job): HTMLElement {
   if (stale) {
     const staleEl = document.createElement("span");
     staleEl.className = "dashboard__card-stale";
-    staleEl.textContent = stale;
+    staleEl.classList.toggle("dashboard__stale--overdue", stale.overdue);
+    staleEl.textContent = stale.text;
     main.appendChild(staleEl);
   }
 
