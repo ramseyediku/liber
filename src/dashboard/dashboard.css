@@ -80,7 +80,7 @@ body {
   min-width: 0;
   width: auto;
   padding: 0;
-  border-radius: calc(var(--border-radius) / 2);
+  border-radius: var(--border-radius);
   background: none;
   color: inherit;
   font-weight: inherit;
@@ -155,36 +155,6 @@ body {
   font-size: 0.78rem;
   text-align: center;
   color: var(--clr-muted);
-}
-
-/* Counts per status above the cards. */
-.dashboard__summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-4);
-  margin: 0;
-  padding: 0 var(--space-2);
-  list-style: none;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--clr-dark);
-
-  &[hidden] {
-    display: none;
-  }
-
-  li {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4em;
-  }
-
-  .dashboard__status-dot {
-    flex: none;
-    width: 0.5rem;
-    aspect-ratio: 1;
-    border-radius: 50%;
-  }
 }
 
 .dashboard__card-stale {

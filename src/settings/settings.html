@@ -130,9 +130,16 @@
             <p>Manage your profile, job profiles, data and account.</p>
           </header>
 
+          <nav class="settings__tabs" role="tablist" aria-label="Settings sections">
+            <button type="button" role="tab" class="settings__tab" id="tab-profile" aria-controls="h-profile-panel" aria-selected="true" data-panel="profile">Profile</button>
+            <button type="button" role="tab" class="settings__tab" id="tab-plan" aria-controls="h-plan-panel" aria-selected="false" tabindex="-1" data-panel="plan">Plan</button>
+            <button type="button" role="tab" class="settings__tab" id="tab-account" aria-controls="h-account-panel" aria-selected="false" tabindex="-1" data-panel="account">Account &amp; Data</button>
+            <button type="button" role="tab" class="settings__tab hidden" id="tab-dev" aria-controls="dev-card" aria-selected="false" tabindex="-1" data-panel="dev">Developer</button>
+          </nav>
+
           <!-- Display name -->
-          <section class="settings__card" aria-labelledby="h-profile">
-            <div class="settings__card-head"><h2 id="h-profile">Profile</h2></div>
+          <section class="settings__card" id="h-profile-panel" role="tabpanel" aria-labelledby="tab-profile">
+            <div class="settings__card-head"><h2>Profile</h2></div>
             <form class="settings__name-form" id="name-form" novalidate>
               <span class="settings__big-avatar" id="name-avatar" aria-hidden="true"></span>
               <div class="settings__field">
@@ -142,25 +149,23 @@
                   type="text"
                   autocomplete="nickname"
                   aria-describedby="name-error" />
+                <p class="settings__error hidden" id="name-error" role="alert">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="../shared/icons.svg#icon-alert-circle"></use></svg>
+                  <span>Enter a display name</span>
+                </p>
               </div>
               <button type="submit" class="settings__btn settings__btn--primary" id="name-save" disabled>
                 Save
               </button>
             </form>
-            <p class="settings__error hidden" id="name-error" role="alert">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="../shared/icons.svg#icon-alert-circle"></use></svg>
-              <span>Enter a display name</span>
-            </p>
-          </section>
-
-          <!-- Job profiles -->
-          <section class="settings__card" aria-labelledby="h-job-profiles">
-            <div class="settings__card-head"><h2 id="h-job-profiles">Job profiles</h2></div>
             <div class="settings__row settings__row--stack">
-              <p class="settings__desc">
-                A job profile groups applications by the kind of role you're after. New
-                applications are saved under the active profile.
-              </p>
+              <div class="settings__text">
+                <span class="settings__title">Job profiles</span>
+                <span class="settings__desc">
+                  A job profile groups applications by the kind of role you're after. New
+                  applications are saved under the active profile.
+                </span>
+              </div>
               <ul class="settings__profiles" id="profile-list"></ul>
             </div>
             <form class="settings__row settings__add-profile" id="profile-form" novalidate>
@@ -183,9 +188,126 @@
             </p>
           </section>
 
+          <!-- Job profiles -->
           <!-- Data & sync -->
-          <section class="settings__card" aria-labelledby="h-data">
-            <div class="settings__card-head"><h2 id="h-data">Data &amp; sync</h2></div>
+          <!-- Plan -->
+          <section class="settings__card" id="h-plan-panel" role="tabpanel" hidden aria-labelledby="tab-plan">
+            <div class="settings__card-head">
+              <h2>Plan</h2>
+              <span class="settings__badge" id="plan-badge">Free</span>
+            </div>
+            <p class="settings__desc" id="plan-desc"></p>
+
+            <div class="settings__plans">
+              <article class="settings__plan" id="plan-free">
+                <h3>Free</h3>
+                <p class="settings__plan-price">£0</p>
+                <p class="settings__plan-note" id="plan-free-note">Your current plan</p>
+                <ul class="settings__perks">
+                  <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="../shared/icons.svg#icon-check"></use></svg><span><strong>Up to 10 applications</strong> tracked at a time</span></li>
+                  <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="../shared/icons.svg#icon-check"></use></svg><span><strong>1 job profile</strong> to group your search</span></li>
+                  <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="../shared/icons.svg#icon-check"></use></svg><span><strong>10 automatic captures</strong> from job pages</span></li>
+                  <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="../shared/icons.svg#icon-check"></use></svg><span><strong>Cloud sync</strong> with a free account</span></li>
+                  <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="../shared/icons.svg#icon-check"></use></svg><span><strong>CSV export</strong> of your data</span></li>
+                </ul>
+              </article>
+
+              <article class="settings__plan settings__plan--premium" id="plan-premium">
+                <p class="settings__plan-tag" id="plan-premium-tag">Recommended</p>
+                <h3>Premium</h3>
+                <p class="settings__plan-price">£3.99</p>
+                <p class="settings__plan-note">One-time payment, no subscription</p>
+                <button type="button" class="settings__btn settings__btn--primary settings__plan-cta" id="plan-upgrade">
+                  Unlock Liber
+                </button>
+                <ul class="settings__perks">
+                  <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="../shared/icons.svg#icon-check"></use></svg><span><strong>Unlimited applications</strong> with no cap on your history</span></li>
+                  <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="../shared/icons.svg#icon-check"></use></svg><span><strong>Unlimited job profiles</strong> for every kind of role you're after</span></li>
+                  <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="../shared/icons.svg#icon-check"></use></svg><span><strong>Unlimited automatic captures</strong> on any job page</span></li>
+                  <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="../shared/icons.svg#icon-check"></use></svg><span><strong>Everything in Free</strong> including cloud sync and export</span></li>
+                  <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="../shared/icons.svg#icon-check"></use></svg><span><strong>One payment, no subscription</strong> pay once and keep it</span></li>
+                </ul>
+              </article>
+            </div>
+            <p class="settings__error hidden" id="plan-error" role="alert">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="../shared/icons.svg#icon-alert-circle"></use></svg>
+              <span></span>
+            </p>
+
+            <!-- Restore code UI disabled for now (logic commented out in settings.ts):
+            <div class="settings__row settings__row--stack hidden" id="plan-code-row">
+              <div class="settings__text">
+                <span class="settings__title">Your restore code</span>
+                <span class="settings__desc">Keep this somewhere safe. If you clear your browser data you can use it to get Premium back.</span>
+              </div>
+              <code class="settings__code" id="plan-code"></code>
+            </div>
+
+            <form class="settings__row settings__row--form" id="restore-form" novalidate>
+              <div class="settings__field">
+                <label for="restore-code">Already unlocked Liber? Enter your restore code</label>
+                <input id="restore-code" type="text" autocomplete="off" aria-describedby="restore-error" />
+              </div>
+              <button type="submit" class="settings__btn settings__btn--ghost" id="restore-btn">Restore</button>
+            </form>
+            <p class="settings__error hidden" id="restore-error" role="alert">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="../shared/icons.svg#icon-alert-circle"></use></svg>
+              <span></span>
+            </p>
+            -->
+          </section>
+
+          <!-- Account -->
+          <section class="settings__card" id="h-account-panel" role="tabpanel" hidden aria-labelledby="tab-account">
+            <div class="settings__card-head"><h2>Account &amp; Data</h2></div>
+            <div id="account-signed-out" class="hidden">
+              <div class="settings__row">
+                <div class="settings__text">
+                  <span class="settings__title">You're not logged in</span>
+                  <span class="settings__desc">
+                    Your applications are saved on this device only. Log in to sync them and
+                    manage your account.
+                  </span>
+                </div>
+                <a class="settings__btn settings__btn--primary" href="../onboarding/login.html">Log in</a>
+              </div>
+            </div>
+
+            <div id="account-signed-in" class="hidden">
+              <form class="settings__row settings__row--form" id="email-form" novalidate>
+                <div class="settings__field">
+                  <label for="account-email">Email</label>
+                  <input id="account-email" type="email" autocomplete="email" aria-describedby="email-error" />
+                </div>
+                <button type="submit" class="settings__btn settings__btn--ghost" id="email-save" disabled>
+                  Update
+                </button>
+              </form>
+              <p class="settings__error hidden" id="email-error" role="alert">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="../shared/icons.svg#icon-alert-circle"></use></svg>
+                <span></span>
+              </p>
+
+              <form class="settings__row settings__row--form" id="password-form" novalidate>
+                <div class="settings__field">
+                  <label for="account-password">New password</label>
+                  <input
+                    id="account-password"
+                    type="password"
+                    autocomplete="new-password"
+                    placeholder="At least 8 characters"
+                    aria-describedby="password-error" />
+                </div>
+                <button type="submit" class="settings__btn settings__btn--ghost" id="password-save" disabled>
+                  Update
+                </button>
+              </form>
+              <p class="settings__error hidden" id="password-error" role="alert">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="../shared/icons.svg#icon-alert-circle"></use></svg>
+                <span></span>
+              </p>
+            </div>
+
             <div class="settings__row">
               <div class="settings__text">
                 <span class="settings__title" id="sync-label">Cloud sync</span>
@@ -223,59 +345,8 @@
                 </button>
               </div>
             </div>
-          </section>
 
-          <!-- Account -->
-          <section class="settings__card" aria-labelledby="h-account">
-            <div class="settings__card-head"><h2 id="h-account">Account</h2></div>
-
-            <div id="account-signed-out" class="hidden">
-              <div class="settings__row">
-                <div class="settings__text">
-                  <span class="settings__title">You're not logged in</span>
-                  <span class="settings__desc">
-                    Your applications are saved on this device only. Log in to sync them and
-                    manage your account.
-                  </span>
-                </div>
-                <a class="settings__btn settings__btn--primary" href="../onboarding/login.html">Log in</a>
-              </div>
-            </div>
-
-            <div id="account-signed-in" class="hidden">
-              <form class="settings__row settings__row--form" id="email-form" novalidate>
-                <div class="settings__field">
-                  <label for="account-email">Email</label>
-                  <input id="account-email" type="email" autocomplete="email" aria-describedby="email-error" />
-                </div>
-                <button type="submit" class="settings__btn settings__btn--ghost" id="email-save" disabled>
-                  Update email
-                </button>
-              </form>
-              <p class="settings__error hidden" id="email-error" role="alert">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="../shared/icons.svg#icon-alert-circle"></use></svg>
-                <span></span>
-              </p>
-
-              <form class="settings__row settings__row--form" id="password-form" novalidate>
-                <div class="settings__field">
-                  <label for="account-password">New password</label>
-                  <input
-                    id="account-password"
-                    type="password"
-                    autocomplete="new-password"
-                    placeholder="At least 8 characters"
-                    aria-describedby="password-error" />
-                </div>
-                <button type="submit" class="settings__btn settings__btn--ghost" id="password-save" disabled>
-                  Update password
-                </button>
-              </form>
-              <p class="settings__error hidden" id="password-error" role="alert">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="../shared/icons.svg#icon-alert-circle"></use></svg>
-                <span></span>
-              </p>
-
+            <div id="account-signed-in-end" class="hidden">
               <div class="settings__row">
                 <div class="settings__text">
                   <span class="settings__title">Log out</span>
@@ -294,6 +365,21 @@
                 <button type="button" class="settings__btn settings__btn--danger-ghost" id="delete-open">
                   Delete account
                 </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Developer: shown only for an unpacked install (see settings.ts) -->
+          <section class="settings__card hidden" id="dev-card" role="tabpanel" hidden aria-labelledby="tab-dev">
+            <div class="settings__card-head"><h2>Developer</h2></div>
+            <div class="settings__row">
+              <div class="settings__text">
+                <span class="settings__title">Demo data</span>
+                <span class="settings__desc" id="demo-desc">Fills the dashboard with sample applications, stored only in this browser. Cloud sync must be off to see them.</span>
+              </div>
+              <div class="settings__export">
+                <button type="button" class="settings__btn settings__btn--ghost" id="demo-remove">Remove</button>
+                <button type="button" class="settings__btn settings__btn--ghost" id="demo-load">Load demo data</button>
               </div>
             </div>
           </section>

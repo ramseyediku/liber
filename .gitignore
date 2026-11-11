@@ -1,7 +1,6 @@
-docs/roadmap.md
 node_modules/
 .env
-src/shared/env.js
+src/shared/env.ts
 .claude/
 dist/
- skills-lock.json
+skills-lock.json

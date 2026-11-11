@@ -89,100 +89,98 @@
           </svg>
           <p class="dashboard__label">Settings</p>
         </a>
-
-        <div class="dashboard__sync-row" id="sync-row">
-          <svg
-            class="dashboard__sync-icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round">
-            <use href="../shared/icons.svg#icon-cloud"></use>
-          </svg>
-          <div class="dashboard__sync-text">
-            <span class="dashboard__sync-label" id="sync-label">Cloud sync</span>
-            <span class="dashboard__sync-desc" id="sync-desc"></span>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            class="dashboard__switch hidden"
-            id="sync-switch"
-            aria-checked="false"
-            aria-labelledby="sync-label"
-            aria-describedby="sync-desc">
-            <span class="dashboard__switch-knob"></span>
-          </button>
-          <a
-            class="dashboard__switch dashboard__switch--link"
-            id="sync-login-link"
-            href="../onboarding/login.html"
-            aria-label="Cloud sync is off. Log in to turn it on"
-            title="Log in to turn on cloud sync">
-            <span class="dashboard__switch-knob"></span>
-          </a>
-        </div>
       </aside>
 
       <main class="dashboard__main">
-        <div class="dashboard__corner">
-          <button
-            type="button"
-            class="dashboard__theme-toggle"
-            id="theme-toggle"
-            aria-label="Switch to dark mode">
-            <svg
-              class="theme-icon-sun"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round">
-              <use href="../shared/icons.svg#icon-sun"></use>
-            </svg>
-            <svg
-              class="theme-icon-moon"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round">
-              <use href="../shared/icons.svg#icon-moon"></use>
-            </svg>
-          </button>
-
-          <a class="dashboard__login-btn hidden" id="login-link" href="../onboarding/login.html">Log in</a>
-
-          <button
-            type="button"
-            class="dashboard__avatar dashboard__avatar--account hidden"
-            id="account-trigger"
-            aria-haspopup="true"
-            aria-label="View profile"></button>
-        </div>
-
         <header class="dashboard__header">
           <h1>My Applications</h1>
+          <div class="dashboard__corner">
+            <button
+              type="button"
+              class="dashboard__theme-toggle"
+              id="theme-toggle"
+              aria-label="Switch to dark mode">
+              <svg
+                class="theme-icon-sun"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round">
+                <use href="../shared/icons.svg#icon-sun"></use>
+              </svg>
+              <svg
+                class="theme-icon-moon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round">
+                <use href="../shared/icons.svg#icon-moon"></use>
+              </svg>
+            </button>
+
+            <a class="dashboard__login-btn hidden" id="login-link" href="../onboarding/login.html">Log in</a>
+
+            <button
+              type="button"
+              class="dashboard__avatar dashboard__avatar--account hidden"
+              id="account-trigger"
+              aria-haspopup="true"
+              aria-label="View profile"></button>
+          </div>
           <p class="dashboard__greeting" id="greeting">
             <span class="dashboard__greeting-label">Tracking my applications for</span>
-            <span class="dashboard__profession-pill">
+            <button
+              type="button"
+              class="dashboard__profession-pill"
+              id="profile-switcher"
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-label="Switch job profile">
               <span id="profession-label"></span>
-            </span>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true">
+                <use href="../shared/icons.svg#icon-chevron-down"></use>
+              </svg>
+            </button>
           </p>
-          <button
-            type="button"
-            class="dashboard__logs-trigger"
-            id="logs-trigger"
-            aria-haspopup="true"
-            aria-expanded="false"
-            aria-label="View scrape activity log">
-            Activity Log
-          </button>
         </header>
+
+        <div class="dashboard__toolbar" id="jobs-toolbar">
+          <div
+            class="dashboard__filters"
+            id="status-filters"
+            role="group"
+            aria-label="Filter by status"></div>
+          <label class="dashboard__search">
+            <span class="visually-hidden">Search applications</span>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true">
+              <use href="../shared/icons.svg#icon-search"></use>
+            </svg>
+            <input
+              type="search"
+              id="jobs-search"
+              placeholder="Search company, title or notes"
+              autocomplete="off" />
+          </label>
+        </div>
+        <p class="visually-hidden" id="filter-status" role="status"></p>
 
         <div class="dashboard__table-wrap" id="jobs-table-wrap">
           <table class="dashboard__table" id="jobs-table">
@@ -191,10 +189,38 @@
                 <th>Company</th>
                 <th class="dashboard__col--title">Job Title</th>
                 <th class="dashboard__col--full dashboard__col--location">Location</th>
-                <th class="dashboard__col--full">Date Added</th>
-                <th class="dashboard__col--status">Status</th>
+                <th class="dashboard__col--full" data-sort="date" aria-sort="descending">
+                  <button type="button" class="dashboard__sort">
+                    Date Added
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true">
+                      <use href="../shared/icons.svg#icon-chevron-down"></use>
+                    </svg>
+                  </button>
+                </th>
+                <th class="dashboard__col--status" data-sort="status">
+                  <button type="button" class="dashboard__sort">
+                    Status
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true">
+                      <use href="../shared/icons.svg#icon-chevron-down"></use>
+                    </svg>
+                  </button>
+                </th>
                 <th class="dashboard__col--notes">Notes</th>
-                <th></th>
+                <th><span class="visually-hidden">Actions</span></th>
               </tr>
             </thead>
             <tbody id="jobs-tbody">

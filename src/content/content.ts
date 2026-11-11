@@ -326,7 +326,7 @@ interface JobFieldSnapshot {
       el.style.cssText =
         "position:fixed; bottom:16px; right:16px; z-index:2147483647; " +
         'background:#fff; color:#1f1f1f; font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; ' +
-        "padding:14px 16px; border-radius:10px; box-shadow:0 4px 20px rgba(0,0,0,0.22); " +
+        "padding:14px 16px; border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,0.22); " +
         "width:260px;";
       document.body.appendChild(el);
     }
@@ -351,8 +351,8 @@ interface JobFieldSnapshot {
       btn.type = "button";
       btn.textContent = label;
       btn.style.cssText = primary
-        ? "flex:1; padding:7px 0; border:none; border-radius:6px; background:#3b82f6; color:#fff; font:inherit; font-weight:600; cursor:pointer;"
-        : "flex:1; padding:7px 0; border:1px solid #d9d9d9; border-radius:6px; background:transparent; color:#1f1f1f; font:inherit; cursor:pointer;";
+        ? "flex:1; padding:7px 0; border:none; border-radius:12px; background:#3b82f6; color:#fff; font:inherit; font-weight:600; cursor:pointer;"
+        : "flex:1; padding:7px 0; border:1px solid #d9d9d9; border-radius:12px; background:transparent; color:#1f1f1f; font:inherit; cursor:pointer;";
       btn.addEventListener("click", onClick);
       actions.appendChild(btn);
     });

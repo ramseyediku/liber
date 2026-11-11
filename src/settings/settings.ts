@@ -4,6 +4,7 @@
 // updates (not in the mockup).
 import {
   createJobProfile,
+  flushPendingUpdates,
   deleteAccount,
   getActiveJobProfileId,
   getAllJobProfiles,
@@ -15,6 +16,8 @@ import {
 } from "../shared/storage.ts";
 import { ensureSession, getSupabaseClient, isPermanentUser } from "../shared/supabaseClient.ts";
 import { isSyncEnabled, setSyncEnabled } from "../shared/sync.ts";
+import { isPaid, startCheckout } from "../shared/entitlements.ts";
+import { isDevInstall, removeDemoJobs, seedDemoJobs } from "../shared/demoData.ts";
 import type { Job, JobProfile, Profile } from "../shared/types.ts";
 
 LiberTheme.initToggle(document.getElementById("theme-toggle"));
@@ -52,8 +55,23 @@ const exportDesc = el("export-desc");
 const exportSelect = el<HTMLSelectElement>("export-profile");
 const exportBtn = el<HTMLButtonElement>("export-btn");
 
+const planBadge = el("plan-badge");
+const planDesc = el("plan-desc");
+const planFreeNote = el("plan-free-note");
+const planPremium = el("plan-premium");
+const planPremiumTag = el("plan-premium-tag");
+const planUpgrade = el<HTMLButtonElement>("plan-upgrade");
+const planError = el("plan-error");
+// Restore-code UI disabled for now:
+// const planCodeRow = el("plan-code-row");
+// const planCode = el("plan-code");
+// const restoreForm = el<HTMLFormElement>("restore-form");
+// const restoreInput = el<HTMLInputElement>("restore-code");
+// const restoreError = el("restore-error");
+
 const accountSignedOut = el("account-signed-out");
 const accountSignedIn = el("account-signed-in");
+const accountSignedInEnd = el("account-signed-in-end");
 const emailForm = el<HTMLFormElement>("email-form");
 const emailInput = el<HTMLInputElement>("account-email");
 const emailSave = el<HTMLButtonElement>("email-save");
@@ -279,6 +297,7 @@ async function renderSyncRow(permanent: boolean): Promise<void> {
 syncSwitch.addEventListener("click", async () => {
   const enable = syncSwitch.getAttribute("aria-checked") !== "true";
   await setSyncEnabled(enable);
+  if (enable) void flushPendingUpdates().catch(() => {});
   await renderSyncRow(true);
   await renderExportSummary();
   showToast(enable ? "Cloud sync turned on" : "Cloud sync turned off");
@@ -462,6 +481,7 @@ async function init(): Promise<void> {
   accountAvatar.textContent = initialOf(savedName);
 
   accountSignedIn.classList.toggle("hidden", !permanent);
+  accountSignedInEnd.classList.toggle("hidden", !permanent);
   accountSignedOut.classList.toggle("hidden", permanent);
   if (permanent) {
     const { data } = await getSupabaseClient().auth.getUser();
@@ -473,6 +493,129 @@ async function init(): Promise<void> {
 
   await Promise.all([loadJobProfiles(), renderSyncRow(permanent), renderExportSummary()]);
 }
+
+// --- Plan -------------------------------------------------------------------
+
+async function renderPlan(): Promise<void> {
+  const paid = await isPaid().catch(() => false);
+  planBadge.textContent = paid ? "Premium" : "Free";
+  planDesc.textContent = paid
+    ? "You're on Premium. Thanks for supporting Liber."
+    : "You're on the free plan. Unlock Liber once to remove every limit.";
+  planFreeNote.textContent = paid ? "Included" : "Your current plan";
+  planPremium.classList.toggle("settings__plan--current", paid);
+  planPremiumTag.textContent = paid ? "Your plan" : "Recommended";
+  planUpgrade.classList.toggle("hidden", paid);
+  // Restore-code UI disabled for now:
+  // restoreForm.classList.toggle("hidden", paid);
+  // setError(restoreError, null);
+  //
+  // const code = paid ? await getRestoreCode() : null;
+  // planCodeRow.classList.toggle("hidden", !code);
+  // if (code) planCode.textContent = code;
+}
+
+planUpgrade.addEventListener("click", async () => {
+  setError(planError, null);
+  planUpgrade.disabled = true;
+  try {
+    const url = await startCheckout();
+    await browser.tabs.create({ url });
+  } catch (err) {
+    setError(planError, errorMessage(err));
+  } finally {
+    planUpgrade.disabled = false;
+  }
+});
+
+// Restore-code UI disabled for now:
+// restoreForm.addEventListener("submit", async (event) => {
+//   event.preventDefault();
+//   setError(restoreError, null);
+//   const code = restoreInput.value.trim();
+//   if (!code) {
+//     setError(restoreError, "Enter your restore code");
+//     return;
+//   }
+//   try {
+//     if (await redeemRestoreCode(code)) {
+//       restoreInput.value = "";
+//       await renderPlan();
+//       showToast("Premium restored");
+//     } else {
+//       setError(restoreError, "That code wasn't recognised");
+//     }
+//   } catch (err) {
+//     setError(restoreError, errorMessage(err));
+//   }
+// });
+
+// Checkout happens in another tab — re-check when the user comes back.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") void renderPlan();
+});
+void renderPlan();
+
+// --- Developer (unpacked installs only) -------------------------------------
+
+if (isDevInstall()) {
+  el("dev-card").classList.remove("hidden");
+  el("tab-dev").classList.remove("hidden");
+
+  el("demo-load").addEventListener("click", async () => {
+    const count = await seedDemoJobs();
+    await renderExportSummary();
+    showToast(
+      (await isSyncEnabled())
+        ? `${count} demo jobs added. Turn off Cloud sync to see them.`
+        : `${count} demo jobs added`,
+    );
+  });
+
+  el("demo-remove").addEventListener("click", async () => {
+    const count = await removeDemoJobs();
+    await renderExportSummary();
+    showToast(count ? `${count} demo jobs removed` : "No demo jobs to remove");
+  });
+}
+
+// --- Section tabs -----------------------------------------------------------
+
+const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>(".settings__tab"));
+
+function selectTab(tab: HTMLButtonElement): void {
+  for (const t of tabs) {
+    const on = t === tab;
+    t.setAttribute("aria-selected", String(on));
+    t.tabIndex = on ? 0 : -1;
+    document.getElementById(t.getAttribute("aria-controls")!)!.hidden = !on;
+  }
+  try {
+    history.replaceState(null, "", `#${tab.dataset.panel}`);
+  } catch {
+    // Non-critical: the section just won't survive a reload.
+  }
+}
+
+for (const tab of tabs) {
+  tab.addEventListener("click", () => selectTab(tab));
+  tab.addEventListener("keydown", (event) => {
+    const visible = tabs.filter((t) => !t.classList.contains("hidden"));
+    const i = visible.indexOf(tab);
+    let next = -1;
+    if (event.key === "ArrowRight") next = (i + 1) % visible.length;
+    else if (event.key === "ArrowLeft") next = (i - 1 + visible.length) % visible.length;
+    if (next < 0) return;
+    event.preventDefault();
+    visible[next]!.focus();
+    selectTab(visible[next]!);
+  });
+}
+
+const hashTab = tabs.find(
+  (t) => t.dataset.panel === location.hash.slice(1) && !t.classList.contains("hidden"),
+);
+if (hashTab) selectTab(hashTab);
 
 initSidebarToggle();
 init();

@@ -44,16 +44,6 @@ export function maybeStartTour(): void {
           align: "center",
         },
       },
-      {
-        element: "#sync-row",
-        popover: {
-          title: "Cloud sync",
-          description:
-            "Switch this on to back up your applications to the cloud and see them on any device. You'll be asked to log in first. Leave it off to keep everything on this device.",
-          side: "right",
-          align: "end",
-        },
-      },
     ],
   }).drive();
 }

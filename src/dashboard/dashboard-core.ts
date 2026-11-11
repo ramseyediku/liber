@@ -1,20 +1,36 @@
 // Shared rendering logic for both dashboard pages. Full view renders every
 // job as a table row; the popup (cardMode) renders a capped card list —
 // only page chrome/CSS and this render mode differ.
-import { getAllJobs, updateJob, deleteJob, restoreJob, getProfile, STATUS_META } from "../shared/storage.ts";
-import { getLogs, clearLogs } from "../shared/logStorage.ts";
-import { ensureSession, getSupabaseClient, isPermanentUser } from "../shared/supabaseClient.ts";
+import {
+  getAllJobs,
+  updateJob,
+  deleteJob,
+  restoreJob,
+  flushPendingUpdates,
+  getProfile,
+  getActiveJobProfileId,
+  getAllJobProfiles,
+  setActiveJobProfile,
+  createJobProfile,
+  STATUS_META,
+} from "../shared/storage.ts";
+import { isPaid } from "../shared/entitlements.ts";
+import {
+  ensureSession,
+  getSupabaseClient,
+  isPermanentUser,
+} from "../shared/supabaseClient.ts";
 import { isSyncEnabled, setSyncEnabled } from "../shared/sync.ts";
-import type { Job, JobStatus, LogEntry, Profile } from "../shared/types.ts";
+import type { Job, JobProfile, JobStatus, Profile } from "../shared/types.ts";
 
-const EMPTY_MESSAGE = 'No applications tracked yet. Click "Apply" on any job listing to start.';
+const EMPTY_MESSAGE =
+  'No applications tracked yet. Click "Apply" on any job listing to start.';
 const COLUMN_COUNT = 7;
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 9;
 
 // --- Module state (set by initDashboard) ----------------------------------
 let tbody: HTMLElement | null;
 let cardsList: HTMLElement | null;
-let summaryEl: HTMLElement | null;
 let cardMode = false;
 let cardLimit = 4;
 
@@ -24,7 +40,10 @@ let cardLimit = 4;
 let toastEl: HTMLElement | null = null;
 let toastTimer: number | undefined;
 
-function showUndoToast(message: string, onUndo: () => Promise<void> | void): void {
+function showUndoToast(
+  message: string,
+  onUndo: () => Promise<void> | void,
+): void {
   clearTimeout(toastTimer);
   toastEl?.remove();
 
@@ -66,7 +85,9 @@ function showUndoToast(message: string, onUndo: () => Promise<void> | void): voi
 // which is the previous evening west of Greenwich, so parse it as a local date.
 function parseDateAdded(iso: string): Date {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(iso);
+  return m
+    ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+    : new Date(iso);
 }
 
 function daysSince(date: Date): number {
@@ -79,7 +100,9 @@ function formatDateAdded(iso: string): string {
   const date = parseDateAdded(iso);
   const days = daysSince(date);
   if (days >= 0 && days < 7) {
-    const relative = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" }).format(-days, "day");
+    const relative = new Intl.RelativeTimeFormat(undefined, {
+      numeric: "auto",
+    }).format(-days, "day");
     return relative.charAt(0).toUpperCase() + relative.slice(1);
   }
   const sameYear = date.getFullYear() === new Date().getFullYear();
@@ -95,9 +118,6 @@ let professionLabel: HTMLElement | null;
 // profile popover's anchor and the thing that shows the initial letter.
 let accountTrigger: HTMLElement | null;
 let loginLink: HTMLElement | null;
-let syncSwitch: HTMLButtonElement | null;
-let syncLoginLink: HTMLElement | null;
-let syncDescEl: HTMLElement | null;
 let sidebarToggle: HTMLElement | null;
 let trashIconTemplate: HTMLTemplateElement | null;
 let chevronDownIconTemplate: HTMLTemplateElement | null;
@@ -108,8 +128,19 @@ let paginationPages: HTMLElement | null;
 let paginationPrev: HTMLButtonElement | null;
 let paginationNext: HTMLButtonElement | null;
 let currentPage = 1;
+
+// Full view only: what the table currently shows. Filters and sort act on the
+// whole dataset before pagination, and the detail panel's prev/next follows
+// the same filtered order.
+type SortKey = "date" | "status";
+let statusFilter: JobStatus | "all" = "all";
+let searchQuery = "";
+let sortKey: SortKey = "date";
+let sortDir: "asc" | "desc" = "desc";
+let toolbarEl: HTMLElement | null;
+let filtersEl: HTMLElement | null;
+let filterStatusEl: HTMLElement | null;
 let totalPages = 1;
-let logsTriggerBtn: HTMLElement | null;
 let activePopover: HTMLElement | null = null;
 
 // Detail drawer (full view only). detailJobId is the source of truth for
@@ -149,16 +180,35 @@ async function refreshSignedInState(): Promise<void> {
   await ensureSession();
   renderGreeting();
   renderAccountArea();
-  renderSyncRow();
-  renderJobs();
-  renderLogs();
+  renderJobs(true);
+}
+
+// The job profile whose applications the dashboard is showing. It is also the
+// profile new saves land under (storage.ts), so switching here switches both.
+let activeProfileId: string | null = null;
+let activeProfileName = "";
+let profileSwitcherBtn: HTMLElement | null = null;
+
+async function getScopedJobs(refresh = false): Promise<Job[]> {
+  activeProfileId ??= await getActiveJobProfileId();
+  return (await getAllJobs({ refresh })).filter((j) => j.profileId === activeProfileId);
 }
 
 async function renderGreeting(): Promise<void> {
   profileData = await getProfile();
+  const profiles = await getAllJobProfiles();
+  activeProfileId = await getActiveJobProfileId();
+  activeProfileName =
+    profiles.find((p) => p.id === activeProfileId)?.name ??
+    profileData?.profession ??
+    "";
+  if (professionLabel) professionLabel.textContent = activeProfileName;
   if (profileData) {
-    if (professionLabel) professionLabel.textContent = profileData.profession;
-    if (accountTrigger) accountTrigger.textContent = profileData.name.trim().charAt(0).toUpperCase();
+    if (accountTrigger)
+      accountTrigger.textContent = profileData.name
+        .trim()
+        .charAt(0)
+        .toUpperCase();
   }
 }
 
@@ -171,28 +221,6 @@ async function renderAccountArea(): Promise<void> {
   loginLink.classList.toggle("hidden", permanent);
 }
 
-// Full view only — sidebar's cloud-sync row. Logged out: a switch-shaped
-// link to Login instead of an interactive control (see sync.ts — turning
-// sync on requires a permanent account).
-async function renderSyncRow(): Promise<void> {
-  if (!syncSwitch || !syncLoginLink || !syncDescEl) return;
-  const permanent = await isPermanentUser();
-  syncSwitch.classList.toggle("hidden", !permanent);
-  syncLoginLink.classList.toggle("hidden", permanent);
-
-  if (!permanent) {
-    syncDescEl.textContent = "Off · log in to back up your applications and see them on any device.";
-    return;
-  }
-
-  const enabled = await isSyncEnabled();
-  syncSwitch.setAttribute("aria-checked", enabled ? "true" : "false");
-  syncSwitch.classList.toggle("dashboard__switch--on", enabled);
-  syncDescEl.textContent = enabled
-    ? "On · your applications are synced to the cloud."
-    : "Off · your applications are saved on this device only.";
-}
-
 // --- Popovers ---------------------------------------------------------------
 
 async function openProfilePopover(anchorBtn: HTMLElement): Promise<void> {
@@ -201,6 +229,8 @@ async function openProfilePopover(anchorBtn: HTMLElement): Promise<void> {
     return;
   }
   if (!profileData) return;
+  const paid = await isPaid().catch(() => false);
+  if (activePopover) return; // a second click landed while we were checking
 
   const popover = document.createElement("div");
   popover.className = "dashboard__popover dashboard__profile-popover";
@@ -210,10 +240,40 @@ async function openProfilePopover(anchorBtn: HTMLElement): Promise<void> {
   name.textContent = profileData.name;
   popover.appendChild(name);
 
-  const profession = document.createElement("p");
-  profession.className = "dashboard__profile-popover-profession";
-  profession.textContent = `Tracking: ${profileData.profession}`;
-  popover.appendChild(profession);
+  const plan = document.createElement("span");
+  plan.className = `dashboard__plan-pill${paid ? " dashboard__plan-pill--premium" : ""}`;
+  plan.textContent = paid ? "Premium" : "Free plan";
+  popover.appendChild(plan);
+
+  // Cloud sync lives here now (it needs a logged-in account, which is the
+  // only case this popover opens for).
+  let syncOn = await isSyncEnabled();
+  const syncRow = document.createElement("div");
+  syncRow.className = "dashboard__profile-popover-sync";
+  syncRow.title = "Back up your applications to the cloud and see them on any device.";
+  const syncLabel = document.createElement("span");
+  syncLabel.id = "popover-sync-label";
+  syncLabel.textContent = "Cloud sync";
+  const syncSwitch = document.createElement("button");
+  syncSwitch.type = "button";
+  syncSwitch.setAttribute("role", "switch");
+  syncSwitch.setAttribute("aria-labelledby", "popover-sync-label");
+  syncSwitch.className = "dashboard__switch";
+  syncSwitch.innerHTML = '<span class="dashboard__switch-knob"></span>';
+  const paintSwitch = () => {
+    syncSwitch.setAttribute("aria-checked", String(syncOn));
+    syncSwitch.classList.toggle("dashboard__switch--on", syncOn);
+  };
+  paintSwitch();
+  syncSwitch.addEventListener("click", async () => {
+    syncOn = !syncOn;
+    paintSwitch();
+    await setSyncEnabled(syncOn);
+    if (syncOn) void flushPendingUpdates().catch(() => {});
+    renderJobs(true); // getAllJobs() reads from a different source depending on the flag
+  });
+  syncRow.append(syncLabel, syncSwitch);
+  popover.appendChild(syncRow);
 
   // The trigger that opens this is only shown for a permanent account
   // (see renderAccountArea) — an anonymous session has nothing to "sign
@@ -236,12 +296,19 @@ async function openProfilePopover(anchorBtn: HTMLElement): Promise<void> {
   // Right-aligns under the button, same pattern as the notes/status
   // popovers — offsetWidth ignores the entrance animation's transform:
   // scale(), unlike getBoundingClientRect().
-  const left = Math.max(12, Math.min(anchorRect.right - popover.offsetWidth, window.innerWidth - popover.offsetWidth - 12));
+  const left = Math.max(
+    12,
+    Math.min(
+      anchorRect.right - popover.offsetWidth,
+      window.innerWidth - popover.offsetWidth - 12,
+    ),
+  );
   popover.style.left = `${left}px`;
 
   // Flip above the anchor when there isn't room below (trigger sits at the
   // bottom of the sidebar).
-  const openUp = anchorRect.bottom + popover.offsetHeight + 10 > window.innerHeight;
+  const openUp =
+    anchorRect.bottom + popover.offsetHeight + 10 > window.innerHeight;
   popover.style.top = openUp
     ? `${anchorRect.top - popover.offsetHeight - 10}px`
     : `${anchorRect.bottom + 10}px`;
@@ -264,45 +331,53 @@ function openStatusMenu(job: Job, pill: HTMLElement): void {
   menu.setAttribute("role", "listbox");
   menu.setAttribute("aria-label", "Choose status");
 
-  (Object.entries(STATUS_META) as [JobStatus, (typeof STATUS_META)[JobStatus]][]).forEach(
-    ([value, meta]) => {
-      const option = document.createElement("button");
-      option.type = "button";
-      option.setAttribute("role", "option");
-      option.className = "dashboard__status-option";
-      const selected = value === job.status;
-      option.setAttribute("aria-selected", selected ? "true" : "false");
+  (
+    Object.entries(STATUS_META) as [
+      JobStatus,
+      (typeof STATUS_META)[JobStatus],
+    ][]
+  ).forEach(([value, meta]) => {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.setAttribute("role", "option");
+    option.className = "dashboard__status-option";
+    const selected = value === job.status;
+    option.setAttribute("aria-selected", selected ? "true" : "false");
 
-      const dot = document.createElement("span");
-      dot.className = `dashboard__status-dot dashboard__status-dot--${value}`;
-      option.appendChild(dot);
+    const dot = document.createElement("span");
+    dot.className = `dashboard__status-dot dashboard__status-dot--${value}`;
+    option.appendChild(dot);
 
-      const label = document.createElement("span");
-      label.textContent = meta.label;
-      option.appendChild(label);
+    const label = document.createElement("span");
+    label.textContent = meta.label;
+    option.appendChild(label);
 
-      if (selected) option.appendChild(checkIconTemplate!.content.cloneNode(true));
+    if (selected)
+      option.appendChild(checkIconTemplate!.content.cloneNode(true));
 
-      option.addEventListener("click", async () => {
-        if (value !== job.status) {
-          const previous = job.status;
-          const apply = async (next: JobStatus) => {
-            job.status = next;
-            pill.className = `dashboard__status-pill dashboard__status-pill--${next}`;
-            pill.querySelector("span")!.textContent = STATUS_META[next].label;
-            pill.setAttribute("aria-label", `Status: ${STATUS_META[next].label}. Change status`);
-            await updateJob(job.id, { status: next });
-            if (cardMode) renderStatusSummary(await getAllJobs());
-          };
-          await apply(value);
-          showUndoToast(`Marked ${meta.label}`, () => apply(previous));
-        }
-        closeActivePopover();
-      });
+    option.addEventListener("click", async () => {
+      // Dismiss first so the menu goes the moment an option is picked,
+      // not after the storage round trip.
+      closeActivePopover();
+      if (value !== job.status) {
+        const previous = job.status;
+        const apply = async (next: JobStatus) => {
+          job.status = next;
+          pill.className = `dashboard__status-pill dashboard__status-pill--${next}`;
+          pill.querySelector("span")!.textContent = STATUS_META[next].label;
+          pill.setAttribute(
+            "aria-label",
+            `Status: ${STATUS_META[next].label}. Change status`,
+          );
+          await updateJob(job.id, { status: next });
+        };
+        await apply(value);
+        showUndoToast(`Marked ${meta.label}`, () => apply(previous));
+      }
+    });
 
-      menu.appendChild(option);
-    },
-  );
+    menu.appendChild(option);
+  });
 
   document.body.appendChild(menu);
 
@@ -312,7 +387,8 @@ function openStatusMenu(job: Job, pill: HTMLElement): void {
   left = Math.max(12, left);
   menu.style.left = `${left}px`;
 
-  const openUp = anchorRect.bottom + menu.offsetHeight + 10 > window.innerHeight;
+  const openUp =
+    anchorRect.bottom + menu.offsetHeight + 10 > window.innerHeight;
   menu.style.top = openUp
     ? `${anchorRect.top - menu.offsetHeight - 6}px`
     : `${anchorRect.bottom + 6}px`;
@@ -320,7 +396,9 @@ function openStatusMenu(job: Job, pill: HTMLElement): void {
   pill.setAttribute("aria-expanded", "true");
   activePopover = menu;
   activePopoverAnchor = pill;
-  menu.querySelector<HTMLElement>('[aria-selected="true"]')?.focus({ preventScroll: true });
+  menu
+    .querySelector<HTMLElement>('[aria-selected="true"]')
+    ?.focus({ preventScroll: true });
 
   document.addEventListener("mousedown", handleOutsideClick, true);
   document.addEventListener("keydown", handlePopoverKeydown, true);
@@ -334,7 +412,10 @@ function buildStatusPill(job: Job): HTMLButtonElement {
   pill.className = `dashboard__status-pill dashboard__status-pill--${job.status}`;
   pill.setAttribute("aria-haspopup", "listbox");
   pill.setAttribute("aria-expanded", "false");
-  pill.setAttribute("aria-label", `Status: ${STATUS_META[job.status].label}. Change status`);
+  pill.setAttribute(
+    "aria-label",
+    `Status: ${STATUS_META[job.status].label}. Change status`,
+  );
 
   const label = document.createElement("span");
   label.textContent = STATUS_META[job.status].label;
@@ -358,7 +439,10 @@ function syncTablePill(job: Job): void {
   if (!pill) return;
   pill.className = `dashboard__status-pill dashboard__status-pill--${job.status}`;
   pill.querySelector("span")!.textContent = STATUS_META[job.status].label;
-  pill.setAttribute("aria-label", `Status: ${STATUS_META[job.status].label}. Change status`);
+  pill.setAttribute(
+    "aria-label",
+    `Status: ${STATUS_META[job.status].label}. Change status`,
+  );
 }
 
 function buildStatusCell(job: Job): HTMLElement {
@@ -374,7 +458,9 @@ function closeActivePopover(): void {
   const anchor = activePopoverAnchor;
   // Keyboard users keep their place: focus goes back to what opened the popover
   // when it was inside the popover (or lost to the body by the click).
-  const hadFocus = el.contains(document.activeElement) || document.activeElement === document.body;
+  const hadFocus =
+    el.contains(document.activeElement) ||
+    document.activeElement === document.body;
   activePopover = null;
   activePopoverAnchor = null;
   if (anchor?.hasAttribute("aria-expanded")) {
@@ -413,16 +499,157 @@ function handlePopoverKeydown(event: KeyboardEvent): void {
 
   // Arrow-key roving through the status menu's options.
   if (!activePopover?.classList.contains("dashboard__status-menu")) return;
-  const options = Array.from(activePopover.querySelectorAll<HTMLElement>('[role="option"]'));
+  const options = Array.from(
+    activePopover.querySelectorAll<HTMLElement>('[role="option"]:not([hidden])'),
+  );
   const current = options.indexOf(document.activeElement as HTMLElement);
   let next = -1;
   if (event.key === "ArrowDown") next = (current + 1) % options.length;
-  else if (event.key === "ArrowUp") next = (current - 1 + options.length) % options.length;
+  else if (event.key === "ArrowUp")
+    next = (current - 1 + options.length) % options.length;
   else if (event.key === "Home") next = 0;
   else if (event.key === "End") next = options.length - 1;
   if (next < 0) return;
   event.preventDefault();
   options[next]?.focus();
+}
+
+function positionPopover(menu: HTMLElement, anchor: HTMLElement): void {
+  const rect = anchor.getBoundingClientRect();
+  const left = Math.max(
+    12,
+    Math.min(rect.left, window.innerWidth - menu.offsetWidth - 12),
+  );
+  menu.style.left = `${left}px`;
+  const openUp = rect.bottom + menu.offsetHeight + 10 > window.innerHeight;
+  menu.style.top = openUp
+    ? `${rect.top - menu.offsetHeight - 6}px`
+    : `${rect.bottom + 6}px`;
+}
+
+async function switchJobProfile(profile: JobProfile): Promise<void> {
+  await setActiveJobProfile(profile);
+  activeProfileId = profile.id;
+  activeProfileName = profile.name;
+  if (professionLabel) professionLabel.textContent = profile.name;
+  statusFilter = "all";
+  searchQuery = "";
+  const search = document.getElementById("jobs-search") as HTMLInputElement | null;
+  if (search) search.value = "";
+  currentPage = 1;
+  renderJobs();
+}
+
+// Dropdown on the greeting pill: pick which job profile the dashboard shows,
+// or add one (paid plan only — free accounts see the entry locked).
+async function openProfileSwitcher(anchor: HTMLElement): Promise<void> {
+  if (activePopover) {
+    closeActivePopover();
+    return;
+  }
+  const [profiles, paid] = await Promise.all([getAllJobProfiles(), isPaid()]);
+
+  const menu = document.createElement("div");
+  menu.className = "dashboard__popover dashboard__status-menu dashboard__profile-menu";
+  menu.setAttribute("role", "listbox");
+  menu.setAttribute("aria-label", "Choose job profile");
+
+  profiles
+    .filter((p) => !p.deleted)
+    .forEach((p) => {
+      const option = document.createElement("button");
+      option.type = "button";
+      option.setAttribute("role", "option");
+      option.className = "dashboard__status-option";
+      const selected = p.id === activeProfileId;
+      option.setAttribute("aria-selected", selected ? "true" : "false");
+      const label = document.createElement("span");
+      label.textContent = p.name;
+      option.appendChild(label);
+      if (selected) option.appendChild(checkIconTemplate!.content.cloneNode(true));
+      option.addEventListener("click", () => {
+        closeActivePopover();
+        if (!selected) switchJobProfile(p);
+      });
+      menu.appendChild(option);
+    });
+
+  const divider = document.createElement("div");
+  divider.className = "dashboard__profile-menu-divider";
+  menu.appendChild(divider);
+
+  const add = document.createElement("button");
+  add.type = "button";
+  add.className = "dashboard__status-option dashboard__profile-add";
+  add.setAttribute("role", "option");
+  add.setAttribute("aria-selected", "false");
+  const addLabel = document.createElement("span");
+  addLabel.textContent = "+ Add profile";
+  add.appendChild(addLabel);
+  if (!paid) {
+    add.setAttribute("aria-disabled", "true");
+    add.title = "Unlock Liber for unlimited job profiles";
+    const tag = document.createElement("small");
+    tag.className = "dashboard__profile-premium";
+    tag.textContent = "Premium";
+    add.appendChild(tag);
+  }
+  menu.appendChild(add);
+
+  const form = document.createElement("form");
+  form.className = "dashboard__profile-form";
+  form.hidden = true;
+  const input = document.createElement("input");
+  input.type = "text";
+  input.maxLength = 40;
+  input.placeholder = "Profile name";
+  input.setAttribute("aria-label", "New job profile name");
+  const error = document.createElement("p");
+  error.className = "dashboard__profile-error";
+  error.setAttribute("role", "alert");
+  form.append(input, error);
+  menu.appendChild(form);
+
+  add.addEventListener("click", () => {
+    if (!paid) return;
+    add.hidden = true;
+    form.hidden = false;
+    input.focus();
+  });
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const name = input.value.trim();
+    if (!name) return;
+    if (profiles.some((p) => p.name.trim().toLowerCase() === name.toLowerCase())) {
+      error.textContent = "You already have a profile with that name";
+      return;
+    }
+    input.disabled = true;
+    try {
+      const result = await createJobProfile(name);
+      if (result.status === "limit") {
+        error.textContent = "Unlock Liber for unlimited job profiles";
+        input.disabled = false;
+        return;
+      }
+      closeActivePopover();
+      await switchJobProfile(result.profile);
+    } catch {
+      error.textContent = "Couldn't add the profile. Try again.";
+      input.disabled = false;
+    }
+  });
+
+  document.body.appendChild(menu);
+  positionPopover(menu, anchor);
+  anchor.setAttribute("aria-expanded", "true");
+  activePopover = menu;
+  activePopoverAnchor = anchor;
+  menu
+    .querySelector<HTMLElement>('[aria-selected="true"]')
+    ?.focus({ preventScroll: true });
+  document.addEventListener("mousedown", handleOutsideClick, true);
+  document.addEventListener("keydown", handlePopoverKeydown, true);
 }
 
 function openNotesPopover(job: Job, anchorBtn: HTMLElement): void {
@@ -470,116 +697,47 @@ function openNotesPopover(job: Job, anchorBtn: HTMLElement): void {
   document.addEventListener("keydown", handlePopoverKeydown, true);
 }
 
-// Full view only — built fresh inside this popover each time it opens,
-// same anchored-popover pattern as the notes/profile popovers (Escape,
-// outside-click, and its close button all dismiss it; clicking the
-// trigger again while open toggles it closed).
-function openLogsPopover(anchorBtn: HTMLElement): void {
-  if (activePopoverAnchor === anchorBtn) {
-    closeActivePopover();
-    return;
-  }
-  if (activePopover) closeActivePopover();
-
-  const popover = document.createElement("div");
-  popover.className = "dashboard__popover dashboard__logs-popover";
-
-  const header = document.createElement("div");
-  header.className = "dashboard__logs-header";
-
-  const heading = document.createElement("h2");
-  heading.textContent = "Scrape Activity Log";
-  header.appendChild(heading);
-
-  const headerActions = document.createElement("div");
-  headerActions.className = "dashboard__logs-header-actions";
-
-  const clearBtn = document.createElement("button");
-  clearBtn.type = "button";
-  clearBtn.className = "dashboard__logs-clear";
-  clearBtn.textContent = "Clear";
-  clearBtn.addEventListener("click", async () => {
-    await clearLogs();
-    renderLogs();
-  });
-  headerActions.appendChild(clearBtn);
-
-  const closeBtn = document.createElement("button");
-  closeBtn.type = "button";
-  closeBtn.className = "dashboard__logs-popover-close";
-  closeBtn.setAttribute("aria-label", "Close activity log");
-  closeBtn.innerHTML =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="../shared/icons.svg#icon-close"></use></svg>';
-  closeBtn.addEventListener("click", () => closeActivePopover());
-  headerActions.appendChild(closeBtn);
-
-  header.appendChild(headerActions);
-  popover.appendChild(header);
-
-  const list = document.createElement("ol");
-  list.className = "dashboard__logs-list";
-  list.id = "logs-list";
-  popover.appendChild(list);
-
-  document.body.appendChild(popover);
-
-  const anchorRect = anchorBtn.getBoundingClientRect();
-  const left = Math.max(12, Math.min(anchorRect.left, window.innerWidth - popover.offsetWidth - 12));
-  popover.style.left = `${left}px`;
-
-  const openUp = anchorRect.bottom + popover.offsetHeight + 10 > window.innerHeight;
-  popover.style.top = openUp
-    ? `${anchorRect.top - popover.offsetHeight - 10}px`
-    : `${anchorRect.bottom + 10}px`;
-
-  anchorBtn.setAttribute("aria-expanded", "true");
-  activePopover = popover;
-  activePopoverAnchor = anchorBtn;
-
-  document.addEventListener("mousedown", handleOutsideClick, true);
-  document.addEventListener("keydown", handlePopoverKeydown, true);
-
-  renderLogs();
-}
-
 // --- Detail drawer -----------------------------------------------------------
 
 function renderDetailStatus(job: Job, jobs: Job[]): void {
   detailStatusGroup!.innerHTML = "";
 
-  (Object.entries(STATUS_META) as [JobStatus, (typeof STATUS_META)[JobStatus]][]).forEach(
-    ([value, meta]) => {
-      const selected = value === job.status;
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.setAttribute("role", "radio");
-      btn.setAttribute("aria-checked", selected ? "true" : "false");
-      btn.className = "dashboard__detail-status-option";
+  (
+    Object.entries(STATUS_META) as [
+      JobStatus,
+      (typeof STATUS_META)[JobStatus],
+    ][]
+  ).forEach(([value, meta]) => {
+    const selected = value === job.status;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.setAttribute("role", "radio");
+    btn.setAttribute("aria-checked", selected ? "true" : "false");
+    btn.className = "dashboard__detail-status-option";
 
-      const dot = document.createElement("span");
-      dot.className = `dashboard__status-dot dashboard__status-dot--${value}`;
-      btn.appendChild(dot);
+    const dot = document.createElement("span");
+    dot.className = `dashboard__status-dot dashboard__status-dot--${value}`;
+    btn.appendChild(dot);
 
-      const label = document.createElement("span");
-      label.textContent = meta.label;
-      btn.appendChild(label);
+    const label = document.createElement("span");
+    label.textContent = meta.label;
+    btn.appendChild(label);
 
-      btn.addEventListener("click", async () => {
-        if (value === job.status) return;
-        const previous = job.status;
-        const apply = async (next: JobStatus) => {
-          job.status = next;
-          renderDetailPanel(job, jobs);
-          syncTablePill(job);
-          await updateJob(job.id, { status: next });
-        };
-        await apply(value);
-        showUndoToast(`Marked ${meta.label}`, () => apply(previous));
-      });
+    btn.addEventListener("click", async () => {
+      if (value === job.status) return;
+      const previous = job.status;
+      const apply = async (next: JobStatus) => {
+        job.status = next;
+        renderDetailPanel(job, jobs);
+        syncTablePill(job);
+        await updateJob(job.id, { status: next });
+      };
+      await apply(value);
+      showUndoToast(`Marked ${meta.label}`, () => apply(previous));
+    });
 
-      detailStatusGroup!.appendChild(btn);
-    },
-  );
+    detailStatusGroup!.appendChild(btn);
+  });
 }
 
 function renderDetailPanel(job: Job, jobs: Job[]): void {
@@ -607,11 +765,19 @@ function renderDetailPanel(job: Job, jobs: Job[]): void {
     detailLocationEl!.textContent = job.location;
   }
 
-  detailDateEl!.textContent = parseDateAdded(job.dateAdded).toLocaleDateString();
+  detailDateEl!.textContent = parseDateAdded(
+    job.dateAdded,
+  ).toLocaleDateString();
   detailNoteEl!.value = job.notes || "";
 
-  detailPanel.setAttribute("aria-label", `Application details for ${job.company}`);
-  detailDeleteBtn!.setAttribute("aria-label", `Delete ${job.company} application`);
+  detailPanel.setAttribute(
+    "aria-label",
+    `Application details for ${job.company}`,
+  );
+  detailDeleteBtn!.setAttribute(
+    "aria-label",
+    `Delete ${job.company} application`,
+  );
 
   renderDetailStatus(job, jobs);
 }
@@ -647,7 +813,8 @@ function openDetail(job: Job, jobs: Job[]): void {
 function closeDetail(): void {
   detailJobId = null;
   currentDetailJob = null;
-  if (!detailPanel || (detailPanel as HTMLElement & { hidden: boolean }).hidden) return;
+  if (!detailPanel || (detailPanel as HTMLElement & { hidden: boolean }).hidden)
+    return;
 
   document.removeEventListener("keydown", handleDetailKeydown);
   detailOverlay!.classList.add("dashboard__detail-overlay--closing");
@@ -673,7 +840,7 @@ function handleDetailKeydown(event: KeyboardEvent): void {
 
 async function navigateDetail(delta: number): Promise<void> {
   if (detailJobId === null) return;
-  const jobs = await getAllJobs();
+  const jobs = getVisibleJobs(await getScopedJobs());
   const index = jobs.findIndex((j) => j.id === detailJobId);
   const target = jobs[index + delta];
   if (!target) return;
@@ -684,7 +851,7 @@ async function navigateDetail(delta: number): Promise<void> {
 async function handleDetailDelete(): Promise<void> {
   if (!currentDetailJob) return;
   const jobId = currentDetailJob.id;
-  const jobs = await getAllJobs();
+  const jobs = await getScopedJobs();
   const index = jobs.findIndex((j) => j.id === jobId);
   const next = jobs[index + 1] || jobs[index - 1];
 
@@ -750,11 +917,24 @@ function buildNotesCell(job: Job): HTMLElement {
 function buildRow(job: Job, jobs: Job[]): HTMLElement {
   const tr = document.createElement("tr");
   tr.dataset.jobId = job.id;
+  tr.tabIndex = 0;
   tr.addEventListener("click", () => openDetail(job, jobs));
+  tr.addEventListener("keydown", (event) => {
+    // Only when the row itself has focus, so the pill/notes/delete buttons
+    // inside it keep their own Enter and Space.
+    if (event.target !== tr || (event.key !== "Enter" && event.key !== " ")) return;
+    event.preventDefault();
+    openDetail(job, jobs);
+  });
 
   tr.appendChild(buildTruncatedCell(job.company, "dashboard__col--company"));
   tr.appendChild(buildTruncatedCell(job.jobTitle, "dashboard__col--title"));
-  tr.appendChild(buildTruncatedCell(job.location, "dashboard__col--full dashboard__col--location"));
+  tr.appendChild(
+    buildTruncatedCell(
+      job.location,
+      "dashboard__col--full dashboard__col--location",
+    ),
+  );
 
   const dateTd = document.createElement("td");
   dateTd.className = "dashboard__col--full";
@@ -804,27 +984,6 @@ function buildEmptyRow(): HTMLElement {
   return tr;
 }
 
-// Popup header strip: how many applications sit in each status, so the state
-// of the whole search reads before any single card does.
-function renderStatusSummary(jobs: Job[]): void {
-  if (!summaryEl) return;
-  summaryEl.innerHTML = "";
-  (Object.entries(STATUS_META) as [JobStatus, (typeof STATUS_META)[JobStatus]][]).forEach(
-    ([value, meta]) => {
-      const count = jobs.filter((j) => j.status === value).length;
-      if (!count) return;
-      const li = document.createElement("li");
-      const dot = document.createElement("span");
-      dot.className = `dashboard__status-dot dashboard__status-dot--${value}`;
-      dot.setAttribute("aria-hidden", "true");
-      li.appendChild(dot);
-      li.appendChild(document.createTextNode(`${count} ${meta.label}`));
-      summaryEl!.appendChild(li);
-    },
-  );
-  summaryEl.hidden = !summaryEl.children.length;
-}
-
 // Applied for this long with no status change reads as "follow up".
 const STALE_AFTER_DAYS = 14;
 
@@ -846,7 +1005,9 @@ function buildCard(job: Job): HTMLElement {
   main.type = "button";
   main.className = "dashboard__card-main";
   main.addEventListener("click", () => {
-    browser.tabs.create({ url: browser.runtime.getURL("src/dashboard/dashboard-full.html") });
+    browser.tabs.create({
+      url: browser.runtime.getURL("src/dashboard/dashboard-full.html"),
+    });
     window.close();
   });
 
@@ -887,10 +1048,7 @@ function buildEmptyCard(): HTMLElement {
 function renderPagination(): void {
   if (!paginationNav) return;
 
-  if (totalPages <= 1) {
-    paginationNav.style.display = "none";
-    return;
-  }
+  // Always shown (a single page when empty) so it never shifts position.
 
   paginationNav.style.display = "";
   paginationPrev!.disabled = currentPage === 1;
@@ -918,96 +1076,129 @@ function renderPagination(): void {
   }
 }
 
-// Pretty-printed (not one-line) — a log entry's detail usually has nested
-// structure. Strings pass through as-is so a plain message isn't quoted.
-function formatLogDetail(detail: unknown): string {
-  if (detail == null) return "";
-  if (typeof detail === "string") return detail;
-  try {
-    return JSON.stringify(detail, null, 2);
-  } catch {
-    return String(detail);
+const STATUS_ORDER = Object.keys(STATUS_META) as JobStatus[];
+
+function filtersActive(): boolean {
+  return statusFilter !== "all" || searchQuery !== "";
+}
+
+function getVisibleJobs(all: Job[]): Job[] {
+  const query = searchQuery.trim().toLowerCase();
+  const visible = all.filter((job) => {
+    if (statusFilter !== "all" && job.status !== statusFilter) return false;
+    if (!query) return true;
+    return [job.company, job.jobTitle, job.location, job.notes].some((field) =>
+      field?.toLowerCase().includes(query),
+    );
+  });
+
+  // getAllJobs() already returns newest first, and sort() is stable, so the
+  // default (date, descending) needs no work and ties keep that order.
+  if (sortKey === "date") {
+    if (sortDir === "asc") visible.reverse();
+  } else {
+    const dir = sortDir === "asc" ? 1 : -1;
+    visible.sort((a, b) => dir * (STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status)));
+  }
+  return visible;
+}
+
+function renderToolbar(all: Job[], visibleCount: number): void {
+  if (!toolbarEl || !filtersEl) return;
+  toolbarEl.hidden = false;
+  filtersEl.innerHTML = "";
+
+  const addChip = (value: JobStatus | "all", label: string, count: number) => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = `dashboard__chip${value === "all" ? "" : ` dashboard__chip--${value}`}`;
+    chip.setAttribute("aria-pressed", String(statusFilter === value));
+    if (value !== "all") {
+      const dot = document.createElement("span");
+      dot.className = `dashboard__status-dot dashboard__status-dot--${value}`;
+      dot.setAttribute("aria-hidden", "true");
+      chip.appendChild(dot);
+    }
+    chip.appendChild(document.createTextNode(label));
+    const countEl = document.createElement("span");
+    countEl.className = "dashboard__chip-count";
+    countEl.textContent = String(count);
+    chip.appendChild(countEl);
+    chip.addEventListener("click", () => {
+      // Clicking the active chip again clears it.
+      statusFilter = statusFilter === value ? "all" : value;
+      currentPage = 1;
+      renderJobs();
+    });
+    filtersEl!.appendChild(chip);
+  };
+
+  addChip("all", "All", all.length);
+  STATUS_ORDER.forEach((status) => {
+    const count = all.filter((j) => j.status === status).length;
+    addChip(status, STATUS_META[status].label, count);
+  });
+
+  document.querySelectorAll<HTMLElement>("th[data-sort]").forEach((th) => {
+    if (th.dataset.sort === sortKey) {
+      th.setAttribute("aria-sort", sortDir === "asc" ? "ascending" : "descending");
+    } else {
+      th.removeAttribute("aria-sort");
+    }
+  });
+
+  if (filterStatusEl) {
+    filterStatusEl.textContent = filtersActive()
+      ? `Showing ${visibleCount} of ${all.length} applications`
+      : "";
   }
 }
 
-function formatLogPage(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return url || "";
-  }
+function clearFilters(): void {
+  statusFilter = "all";
+  searchQuery = "";
+  const input = document.getElementById("jobs-search") as HTMLInputElement | null;
+  if (input) input.value = "";
+  currentPage = 1;
+  renderJobs();
 }
 
-function buildLogRow(entry: LogEntry): HTMLElement {
-  const li = document.createElement("li");
-  li.className = "dashboard__log-row";
-
-  const time = document.createElement("span");
-  time.className = "dashboard__log-time";
-  time.textContent = new Date(entry.timestamp).toLocaleTimeString();
-  li.appendChild(time);
-
-  const page = document.createElement("span");
-  page.className = "dashboard__log-page";
-  page.textContent = formatLogPage(entry.url);
-  page.title = entry.url || "";
-  li.appendChild(page);
-
-  const step = document.createElement("span");
-  step.className = "dashboard__log-step";
-  step.textContent = entry.step;
-  li.appendChild(step);
-
-  const detailText = formatLogDetail(entry.detail);
-  const detail = document.createElement("span");
-  detail.className = "dashboard__log-detail";
-  detail.textContent = detailText;
-  detail.title = detailText;
-  li.appendChild(detail);
-
-  return li;
+function buildNoMatchRow(): HTMLElement {
+  const tr = document.createElement("tr");
+  const td = document.createElement("td");
+  td.colSpan = COLUMN_COUNT;
+  td.className = "dashboard__empty dashboard__empty--no-match";
+  const text = document.createElement("p");
+  text.textContent = searchQuery
+    ? `No applications match "${searchQuery.trim()}"${statusFilter !== "all" ? ` in ${STATUS_META[statusFilter].label}` : ""}.`
+    : `No applications are marked ${STATUS_META[statusFilter as JobStatus].label}.`;
+  td.appendChild(text);
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.className = "dashboard__link-btn";
+  clear.textContent = "Clear filters";
+  clear.addEventListener("click", clearFilters);
+  td.appendChild(clear);
+  tr.appendChild(td);
+  return tr;
 }
 
-// Full view only — built fresh inside the logs popover each time it opens.
-// A no-op whenever the logs popover isn't the open one, so storage.onChanged
-// can call this unconditionally without erroring when it's closed.
-async function renderLogs(): Promise<void> {
-  if (!activePopover || !activePopover.classList.contains("dashboard__logs-popover")) {
-    return;
-  }
-  const logsListEl = activePopover.querySelector("#logs-list");
-  if (!logsListEl) return;
-  const logs = await getLogs();
-
-  logsListEl.innerHTML = "";
-  if (logs.length === 0) {
-    const li = document.createElement("li");
-    li.className = "dashboard__logs-empty";
-    li.textContent = 'No scrape activity yet. Click "Apply" on a job listing to see logs here.';
-    logsListEl.appendChild(li);
-    return;
-  }
-
-  // Newest first — getLogs() returns oldest-first (append order).
-  logs
-    .slice()
-    .reverse()
-    .forEach((entry) => logsListEl.appendChild(buildLogRow(entry)));
-}
-
-async function renderJobs(): Promise<void> {
+// `refresh` re-pulls from the cloud (sync on); every other re-render reads
+// the local cache so paging/filtering/editing makes no network call.
+async function renderJobs(refresh = false): Promise<void> {
   closeActivePopover();
-  const jobs = await getAllJobs();
+  const jobs = await getScopedJobs(refresh);
 
   if (cardMode) {
     cardsList!.innerHTML = "";
-    renderStatusSummary(jobs);
     if (jobs.length === 0) {
       cardsList!.appendChild(buildEmptyCard());
       if (jobsCountEl) jobsCountEl.textContent = "";
       return;
     }
-    jobs.slice(0, cardLimit).forEach((job) => cardsList!.appendChild(buildCard(job)));
+    jobs
+      .slice(0, cardLimit)
+      .forEach((job) => cardsList!.appendChild(buildCard(job)));
     if (jobsCountEl) {
       const shown = Math.min(cardLimit, jobs.length);
       jobsCountEl.textContent =
@@ -1018,20 +1209,28 @@ async function renderJobs(): Promise<void> {
     return;
   }
 
-  totalPages = Math.max(1, Math.ceil(jobs.length / PAGE_SIZE));
+  const all = jobs;
+  const view = getVisibleJobs(all);
+  renderToolbar(all, view.length);
+
+  totalPages = Math.max(1, Math.ceil(view.length / PAGE_SIZE));
   if (currentPage > totalPages) currentPage = totalPages;
 
   tbody!.innerHTML = "";
 
-  if (jobs.length === 0) {
+  if (all.length === 0) {
     tbody!.appendChild(buildEmptyRow());
+  } else if (view.length === 0) {
+    tbody!.appendChild(buildNoMatchRow());
   } else {
     const start = (currentPage - 1) * PAGE_SIZE;
-    jobs.slice(start, start + PAGE_SIZE).forEach((job) => tbody!.appendChild(buildRow(job, jobs)));
+    view
+      .slice(start, start + PAGE_SIZE)
+      .forEach((job) => tbody!.appendChild(buildRow(job, view)));
   }
 
   renderPagination();
-  syncDetailPanel(jobs);
+  syncDetailPanel(view);
 }
 
 // Full view only — the popup has no room for a collapsible sidebar.
@@ -1042,7 +1241,10 @@ function initSidebarToggle(): void {
 
   const syncLabel = () => {
     const collapsed = dashboardEl!.classList.contains("is-sidebar-collapsed");
-    sidebarToggle!.setAttribute("aria-label", collapsed ? "Expand sidebar" : "Collapse sidebar");
+    sidebarToggle!.setAttribute(
+      "aria-label",
+      collapsed ? "Expand sidebar" : "Collapse sidebar",
+    );
   };
 
   let collapsed = false;
@@ -1090,23 +1292,32 @@ export function initDashboard(options: InitDashboardOptions = {}): void {
   chevronDownIconTemplate = document.getElementById(
     "chevron-down-icon-template",
   ) as HTMLTemplateElement | null;
-  checkIconTemplate = document.getElementById("check-icon-template") as HTMLTemplateElement | null;
+  checkIconTemplate = document.getElementById(
+    "check-icon-template",
+  ) as HTMLTemplateElement | null;
 
   if (cardMode) {
     cardsList = document.getElementById("jobs-cards");
-    summaryEl = document.getElementById("status-summary");
     jobsCountEl = document.getElementById("jobs-count");
   } else {
     professionLabel = document.getElementById("profession-label");
     tbody = document.getElementById("jobs-tbody");
-    trashIconTemplate = document.getElementById("trash-icon-template") as HTMLTemplateElement | null;
-    plusIconTemplate = document.getElementById("plus-icon-template") as HTMLTemplateElement | null;
+    trashIconTemplate = document.getElementById(
+      "trash-icon-template",
+    ) as HTMLTemplateElement | null;
+    plusIconTemplate = document.getElementById(
+      "plus-icon-template",
+    ) as HTMLTemplateElement | null;
 
     detailOverlay = document.getElementById("detail-overlay");
     detailPanel = document.getElementById("detail-panel");
     detailPositionEl = document.getElementById("detail-position");
-    detailPrevBtn = document.getElementById("detail-prev") as HTMLButtonElement | null;
-    detailNextBtn = document.getElementById("detail-next") as HTMLButtonElement | null;
+    detailPrevBtn = document.getElementById(
+      "detail-prev",
+    ) as HTMLButtonElement | null;
+    detailNextBtn = document.getElementById(
+      "detail-next",
+    ) as HTMLButtonElement | null;
     detailCloseBtn = document.getElementById("detail-close");
     detailFooterCloseBtn = document.getElementById("detail-footer-close");
     detailDeleteBtn = document.getElementById("detail-delete");
@@ -1115,7 +1326,9 @@ export function initDashboard(options: InitDashboardOptions = {}): void {
     detailCompanyEl = document.getElementById("detail-company");
     detailLocationEl = document.getElementById("detail-location");
     detailDateEl = document.getElementById("detail-date");
-    detailNoteEl = document.getElementById("detail-note") as HTMLTextAreaElement | null;
+    detailNoteEl = document.getElementById(
+      "detail-note",
+    ) as HTMLTextAreaElement | null;
 
     detailOverlay?.addEventListener("click", closeDetail);
     detailCloseBtn?.addEventListener("click", closeDetail);
@@ -1127,8 +1340,12 @@ export function initDashboard(options: InitDashboardOptions = {}): void {
 
     paginationNav = document.getElementById("jobs-pagination");
     paginationPages = document.getElementById("pagination-pages");
-    paginationPrev = document.getElementById("pagination-prev") as HTMLButtonElement | null;
-    paginationNext = document.getElementById("pagination-next") as HTMLButtonElement | null;
+    paginationPrev = document.getElementById(
+      "pagination-prev",
+    ) as HTMLButtonElement | null;
+    paginationNext = document.getElementById(
+      "pagination-next",
+    ) as HTMLButtonElement | null;
     paginationPrev?.addEventListener("click", () => {
       if (currentPage <= 1) return;
       currentPage--;
@@ -1140,22 +1357,46 @@ export function initDashboard(options: InitDashboardOptions = {}): void {
       renderJobs();
     });
 
-    logsTriggerBtn = document.getElementById("logs-trigger");
-    logsTriggerBtn?.addEventListener("click", () => openLogsPopover(logsTriggerBtn!));
+    toolbarEl = document.getElementById("jobs-toolbar");
+    filtersEl = document.getElementById("status-filters");
+    filterStatusEl = document.getElementById("filter-status");
+
+    let searchTimer: number | undefined;
+    document.getElementById("jobs-search")?.addEventListener("input", (event) => {
+      const value = (event.target as HTMLInputElement).value;
+      clearTimeout(searchTimer);
+      searchTimer = window.setTimeout(() => {
+        searchQuery = value;
+        currentPage = 1;
+        renderJobs();
+      }, 150);
+    });
+
+    document.querySelectorAll<HTMLElement>("th[data-sort]").forEach((th) => {
+      th.querySelector("button")?.addEventListener("click", () => {
+        const key = th.dataset.sort as SortKey;
+        if (sortKey === key) {
+          sortDir = sortDir === "asc" ? "desc" : "asc";
+        } else {
+          sortKey = key;
+          sortDir = key === "date" ? "desc" : "asc";
+        }
+        currentPage = 1;
+        renderJobs();
+      });
+    });
+
+    profileSwitcherBtn = document.getElementById("profile-switcher");
+    profileSwitcherBtn?.addEventListener("click", () =>
+      openProfileSwitcher(profileSwitcherBtn!),
+    );
 
     accountTrigger = document.getElementById("account-trigger");
     loginLink = document.getElementById("login-link");
-    syncSwitch = document.getElementById("sync-switch") as HTMLButtonElement | null;
-    syncLoginLink = document.getElementById("sync-login-link");
-    syncDescEl = document.getElementById("sync-desc");
 
-    accountTrigger?.addEventListener("click", () => openProfilePopover(accountTrigger!));
-    syncSwitch?.addEventListener("click", async () => {
-      const enabled = syncSwitch!.getAttribute("aria-checked") === "true";
-      await setSyncEnabled(!enabled);
-      await renderSyncRow();
-      await renderJobs(); // getAllJobs() reads from a different source depending on the flag
-    });
+    accountTrigger?.addEventListener("click", () =>
+      openProfilePopover(accountTrigger!),
+    );
   }
   dashboardEl = document.querySelector(".dashboard");
 
@@ -1163,19 +1404,31 @@ export function initDashboard(options: InitDashboardOptions = {}): void {
 
   refreshSignedInState();
 
+  // Edits are saved locally right away and pushed to Supabase in batches
+  // (see storage.ts): on load, every minute, and when the page is hidden.
+  // flushPendingUpdates() does nothing while Cloud Sync is off.
+  const flush = () => void flushPendingUpdates().catch(() => {});
+  flush();
+  setInterval(flush, 60_000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flush();
+  });
+  window.addEventListener("pagehide", flush);
+
   // jobs/job_profiles live in browser.storage.local now (local-first —
   // see storage.ts), so a plain liber_jobs change already is the real
-  // data changing; liber_logs still works exactly as before.
-  browser.storage.onChanged.addListener((changes: { [key: string]: chrome.storage.StorageChange }) => {
-    if (changes.liber_jobs) {
-      if (activePopover) {
-        rerenderPending = true;
-      } else {
-        renderJobs();
+  // data changing.
+  browser.storage.onChanged.addListener(
+    (changes: { [key: string]: chrome.storage.StorageChange }) => {
+      if (changes.liber_jobs) {
+        if (activePopover) {
+          rerenderPending = true;
+        } else {
+          renderJobs();
+        }
       }
-    }
-    if (changes.liber_logs) renderLogs();
-  });
+    },
+  );
 
   // Keeps the popup/full view in sync with a sign-in/out that happened
   // elsewhere (onboarding tab, or this page's own "Sign out").

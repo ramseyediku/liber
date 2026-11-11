@@ -2,6 +2,8 @@
 import { initDashboard } from "./dashboard-core.ts";
 import { maybeStartTour } from "./tour.ts";
 
-initDashboard();
+// Wire the theme toggle first so it still works if the dashboard's own
+// setup throws partway through.
 LiberTheme.initToggle(document.getElementById("theme-toggle"));
+initDashboard();
 maybeStartTour();

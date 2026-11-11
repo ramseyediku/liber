@@ -31,14 +31,22 @@
   }
 
   .dashboard__aside {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: 100vh;
+    box-shadow: var(--shadow-aside);
     display: flex;
     flex-direction: column;
-    padding: var(--space-7) var(--space-5);
-    background: var(--clr-sidebar);
+    padding: var(--space-6) var(--space-4);
+    /* Same surface token as the table card, so the two can't drift apart. */
+    background: var(--clr-white);
     color: var(--clr-dark);
     overflow: hidden;
 
     @media (max-width: 600px) {
+      position: static;
+      height: auto;
       flex-direction: row;
       align-items: center;
       flex-wrap: wrap;
@@ -154,10 +162,12 @@
     .dashboard__link {
       display: flex;
       align-items: center;
-      gap: var(--space-1);
-      padding: var(--space-2) var(--space-1);
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      margin-bottom: var(--space-1);
       border-radius: var(--border-radius);
       color: var(--clr-dark);
+      font-size: 1.05rem;
       font-weight: 500;
 
       svg {
@@ -165,10 +175,13 @@
         width: var(--space-6);
         margin: var(--space-1);
         aspect-ratio: 1;
+      }
 
-        .dashboard.is-sidebar-collapsed & {
-          margin-right: 0;
-        }
+      /* Collapsed: no gap or label width left over, so the icon sits dead
+         centre of the link. */
+      .dashboard.is-sidebar-collapsed & {
+        justify-content: center;
+        gap: 0;
       }
 
       &:hover,
@@ -179,7 +192,7 @@
         svg {
           color: var(--clr-accent);
           /* Fill is inherited by the <use>-referenced shapes below (they
-             set no fill of their own), so this colors all four rects of
+             set no fill of their own), so this colors all four circles of
              the job icon without needing to reach into its shadow tree. */
           fill: var(--clr-accent);
         }
@@ -197,94 +210,45 @@
         flex: 1;
       }
     }
-
-    /* Pinned to the bottom of the sidebar, left-aligned with the nav icon
-       above it — matches the new design's sidebar footer slot. */
-    .dashboard__sync-row {
-      margin-top: auto;
-      position: relative;
-      display: flex;
-      align-items: center;
-      gap: var(--space-3);
-      padding: var(--space-3) var(--space-3) var(--space-3) var(--space-1);
-      border-radius: 12px;
-      background: var(--clr-grey);
-
-      .dashboard__sync-icon {
-        flex: none;
-        width: var(--space-6);
-        margin-left: var(--space-1);
-        aspect-ratio: 1;
-        color: var(--clr-dark);
-        opacity: 0.7;
-      }
-
-      /* Collapsed: just the icon, centered like the nav icons above it. */
-      .dashboard.is-sidebar-collapsed & {
-        justify-content: center;
-        padding: var(--space-3) 0;
-
-        .dashboard__switch,
-        .dashboard__switch--link {
-          display: none;
-        }
-      }
-
-      @media (max-width: 600px) {
-        margin-top: 0;
-        margin-left: auto;
-      }
-    }
-
-    .dashboard__sync-text {
-      flex: 1;
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
-      overflow: hidden;
-      opacity: 1;
-      transition:
-        max-width 280ms ease,
-        opacity 160ms ease;
-
-      .dashboard.is-sidebar-collapsed & {
-        max-width: 0;
-        opacity: 0;
-      }
-    }
-
-    .dashboard__sync-label {
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: var(--clr-dark);
-      white-space: nowrap;
-    }
-
-    .dashboard__sync-desc {
-      font-size: 0.75rem;
-      color: var(--clr-muted);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
   }
 
   .dashboard__main {
     position: relative;
     min-width: 0;
-    padding: 5rem var(--space-6) var(--space-6);
+    padding: var(--space-8) var(--space-6) var(--space-6);
 
+    /* Row 1: title on the left, theme toggle / login on the right.
+       Row 2: the greeting, directly under the title. */
     .dashboard__header {
-      padding-bottom: var(--space-4);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: var(--space-2) var(--space-8);
+      padding-bottom: var(--space-10, 3rem);
 
       h1 {
-        margin: 0 0 var(--space-3);
+        grid-column: 1;
+        grid-row: 1;
+        margin: 0;
         font-size: 2.5rem;
+      }
+
+      .dashboard__corner {
+        position: static;
+        grid-column: 2;
+        grid-row: 1;
+      }
+
+      .dashboard__greeting {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        margin: 0;
       }
     }
 
     .dashboard__table-wrap {
+      min-height: calc(var(--table-head-h) + var(--table-row-h) * 9);
+
       .dashboard__table {
         /* Fixed layout so long company/title text truncates inside its
            column instead of widening the table past the viewport and
@@ -292,13 +256,13 @@
         table-layout: fixed;
         min-width: 44rem;
 
-        th:nth-child(1) { width: 24%; }
-        th:nth-child(2) { width: 28%; }
-        th:nth-child(3) { width: 16%; }
-        th:nth-child(4) { width: 7.5rem; }
-        th:nth-child(5) { width: 9.5rem; }
-        th:nth-child(6) { width: 8.5rem; }
-        th:nth-child(7) { width: 3.5rem; }
+        th:nth-child(1) { width: 18%; }
+        th:nth-child(2) { width: 22%; }
+        th:nth-child(3) { width: 14%; }
+        th:nth-child(4) { width: 9rem; }
+        th:nth-child(5) { width: 11.5rem; }
+        th:nth-child(6) { width: 9.5rem; }
+        th:nth-child(7) { width: 4.5rem; }
 
         .dashboard__col--full {
           display: table-cell;
@@ -445,7 +409,7 @@
   aspect-ratio: 1;
   padding: 0;
   border: none;
-  border-radius: 0.6rem;
+  border-radius: var(--border-radius);
   background: transparent;
   color: var(--clr-dark);
   display: grid;
@@ -514,7 +478,7 @@
   height: 2.5rem;
   padding: 0 var(--space-3);
   border: 1px solid var(--clr-grey-dark);
-  border-radius: calc(var(--border-radius) / 2);
+  border-radius: var(--border-radius);
   background: transparent;
   color: var(--clr-dark);
   font: inherit;
@@ -620,7 +584,7 @@
   padding: 0 var(--space-3);
   margin-left: calc(var(--space-3) * -1);
   border: none;
-  border-radius: calc(var(--border-radius) / 2);
+  border-radius: var(--border-radius);
   background: transparent;
   color: var(--clr-rejected-text);
   font: inherit;
@@ -648,7 +612,7 @@
   height: 2.5rem;
   padding: 0 var(--space-4);
   border: none;
-  border-radius: calc(var(--border-radius) / 2);
+  border-radius: var(--border-radius);
   background: transparent;
   color: var(--clr-dark);
   font: inherit;
@@ -704,7 +668,7 @@
   right: var(--space-2);
   width: 1.75rem;
   height: 1.75rem;
-  border-radius: calc(var(--border-radius) / 2);
+  border-radius: var(--border-radius);
   color: var(--clr-dark);
   opacity: 0.55;
   font-size: 1.1rem;
@@ -730,7 +694,7 @@
   padding: 0 var(--space-4);
   height: 2.25rem;
   border: 1px solid var(--clr-grey-dark);
-  border-radius: calc(var(--border-radius) / 2);
+  border-radius: var(--border-radius);
   background: transparent;
   color: var(--clr-dark);
   font: inherit;
@@ -771,4 +735,182 @@
 
 .liber-tour-popover .driver-popover-arrow-side-bottom {
   border-bottom-color: var(--clr-white);
+}
+
+/* --- Table toolbar: status filter chips, search, sortable headers ------- */
+
+.dashboard__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.dashboard__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.dashboard__chip {
+  width: auto;
+  height: 2.2rem;
+  padding: 0 var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  border: 1px solid var(--clr-grey-dark);
+  border-radius: var(--border-radius);
+  background: var(--clr-white);
+  color: var(--clr-dark);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-box-trim: none;
+
+  .dashboard__status-dot {
+    flex: none;
+    width: 0.5rem;
+    aspect-ratio: 1;
+    border-radius: 50%;
+  }
+
+  &:hover {
+    background: var(--clr-grey);
+    transform: none;
+  }
+
+  /* A selected status chip takes its status pill's colour for the border. */
+  &[aria-pressed="true"].dashboard__chip--applied { border-color: var(--clr-applied); }
+  &[aria-pressed="true"].dashboard__chip--interviewing { border-color: var(--clr-interviewing); }
+  &[aria-pressed="true"].dashboard__chip--offer { border-color: var(--clr-offer); }
+  &[aria-pressed="true"].dashboard__chip--rejected { border-color: var(--clr-rejected); }
+  &[aria-pressed="true"].dashboard__chip--withdrawn { border-color: var(--clr-withdrawn); }
+
+  &[aria-pressed="true"] {
+    border-color: var(--clr-accent);
+    background: var(--clr-accent-transparent);
+    color: var(--clr-accent-hover);
+  }
+}
+
+.dashboard__chip-count {
+  font-weight: 500;
+  color: var(--clr-muted);
+
+  [aria-pressed="true"] > & {
+    color: inherit;
+  }
+}
+
+.dashboard__search {
+  position: relative;
+  display: block;
+  flex: 1 1 16rem;
+  max-width: 28rem;
+  margin-inline-start: auto;
+
+  /* Once the chips need two rows, search takes its own full-width row. */
+  @media (max-width: 1100px) {
+    flex-basis: 100%;
+    max-width: none;
+    margin-inline-start: 0;
+  }
+
+  svg {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: var(--space-3);
+    width: 1.1rem;
+    height: 100%;
+    color: var(--clr-muted);
+    pointer-events: none;
+  }
+
+  input {
+    height: 2.4rem;
+    padding: 0 var(--space-4) 0 2.4rem;
+    border-radius: var(--border-radius);
+    font-size: 0.85rem;
+
+    &::placeholder {
+      color: var(--clr-muted);
+    }
+  }
+}
+
+/* Header text that sorts; the arrow only shows once a column is the sort. */
+.dashboard__sort {
+  width: auto;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-box-trim: none;
+  border-radius: var(--border-radius);
+
+  svg {
+    width: 0.9rem;
+    aspect-ratio: 1;
+    opacity: 0.4;
+    transition: transform 160ms ease;
+  }
+
+  &:hover {
+    background: none;
+    color: var(--clr-dark);
+    transform: none;
+
+    svg {
+      opacity: 0.8;
+    }
+  }
+}
+
+th[aria-sort] .dashboard__sort {
+  color: var(--clr-dark);
+
+  svg {
+    opacity: 1;
+  }
+}
+
+th[aria-sort="ascending"] .dashboard__sort svg {
+  transform: rotate(180deg);
+}
+
+/* A table row's ring is clipped at the card's edges when drawn outside. */
+.dashboard__table tbody tr:focus-visible {
+  outline-offset: -2px;
+}
+
+/* "No matches" keeps the table header and offers a way back. */
+.dashboard__empty--no-match {
+  p {
+    margin: 0 auto var(--space-3);
+  }
+}
+
+.dashboard__link-btn {
+  width: auto;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--clr-grey-dark);
+  border-radius: var(--border-radius);
+  background: transparent;
+  color: var(--clr-dark);
+  font-size: 0.85rem;
+  text-box-trim: none;
+
+  &:hover {
+    background: var(--clr-grey);
+    transform: none;
+  }
 }

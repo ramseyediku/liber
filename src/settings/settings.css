@@ -5,7 +5,8 @@
    width/background explicitly. */
 
 .settings {
-  max-width: 54rem;
+  max-width: 50rem;
+  margin: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
@@ -24,20 +25,53 @@
   }
 }
 
-.settings__card {
-  background: var(--clr-white);
+/* Section switcher: one pill per section, the selected one filled. Only the
+   selected section's panel is shown. */
+.settings__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: var(--space-2);
+}
+
+.settings__tab {
+  width: auto;
+  height: 2.6rem;
+  padding: 0 var(--space-5);
+  border: none;
   border-radius: var(--border-radius);
-  box-shadow: var(--box-shadow);
-  overflow: hidden;
+  background: transparent;
+  color: var(--clr-dark);
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-box-trim: none;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--clr-grey);
+    transform: none;
+  }
+
+  &[aria-selected="true"] {
+    background: var(--clr-grey);
+    font-weight: 700;
+  }
+}
+
+.settings__card {
+  padding-inline: var(--space-5);
+}
+
+.settings__card[hidden] {
+  display: none;
 }
 
 .settings__card-head {
-  padding: var(--space-4) var(--space-6);
-  border-bottom: 1px solid var(--clr-grey);
+  margin-bottom: var(--space-2);
 
   h2 {
     margin: 0;
-    font-size: 1.1rem;
+    font-size: 1.25rem;
   }
 }
 
@@ -46,21 +80,19 @@
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: var(--space-4);
-  padding: var(--space-5) var(--space-6);
-
-  border-top: 1px solid var(--clr-grey);
-
-  /* The card head (or the account wrapper) already provides the line above
-     the first row. */
-  .settings__card-head + &,
-  div > &:first-child {
-    border-top: 0;
-  }
+  gap: var(--space-4) var(--space-8);
+  padding: var(--space-4) 0;
 
   &.settings__row--stack {
     flex-direction: column;
     align-items: stretch;
+    row-gap: var(--space-8);
+
+    /* The 18rem flex-basis is a width for side-by-side rows; in a column
+       it would become an 18rem-tall gap. */
+    .settings__text {
+      flex: none;
+    }
   }
 
   &.settings__row--form,
@@ -100,6 +132,13 @@
 
   label {
     font-size: 0.9rem;
+    line-height: 1.5rem;
+  }
+
+  /* Warning sits directly under its input, left edges aligned. */
+  .settings__error {
+    align-self: flex-start;
+    margin: 0;
   }
 
   input {
@@ -110,12 +149,23 @@
 }
 
 /* Profile card: avatar + name field + Save on one line. */
+/* Top-aligned (not bottom) so the warning appearing under the input doesn't
+   push the avatar or Save button around; their margins below line them up
+   with the 3.2rem input (label 1.5rem + 0.5em gap above it). */
 .settings__name-form {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   flex-wrap: wrap;
   gap: var(--space-5);
-  padding: var(--space-6);
+  padding: var(--space-4) 0;
+}
+
+.settings__name-form .settings__big-avatar {
+  margin-top: 1.6rem;
+}
+
+.settings__name-form .settings__btn {
+  margin-top: 2.15rem;
 }
 
 .settings__big-avatar {
@@ -130,6 +180,10 @@
   font-family: var(--heading-font-family);
   font-size: 1.5rem;
   font-weight: 700;
+  /* Trim the font's own ascent/descent space so the letter sits at the true
+     centre of the circle. */
+  line-height: 1;
+  text-box: trim-both cap alphabetic;
 }
 
 /* Buttons */
@@ -138,7 +192,7 @@
   flex: none;
   height: 2.9rem;
   padding: 0 var(--space-5);
-  border-radius: 999px;
+  border-radius: var(--border-radius);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -211,7 +265,6 @@
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
 }
 
 .settings__profile {
@@ -219,9 +272,17 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border-radius: calc(var(--border-radius) * 0.75);
-  background: var(--clr-grey);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--clr-grey);
+
+  /* The row's own gap already separates the list from the description. */
+  &:first-child {
+    padding-top: 0;
+  }
+
+  &:last-child {
+    border-bottom: 0;
+  }
 
   .settings__profile-name {
     min-width: 0;
@@ -241,7 +302,7 @@
 .settings__badge {
   flex: none;
   padding: 0.25em 0.8em;
-  border-radius: 999px;
+  border-radius: var(--border-radius);
   background: var(--clr-accent-transparent);
   color: var(--clr-accent);
   font-size: 0.8rem;
@@ -260,7 +321,7 @@
     max-width: 14rem;
     padding: 0 var(--space-4);
     border: 0;
-    border-radius: 999px;
+    border-radius: var(--border-radius);
     background: var(--clr-grey);
     color: var(--clr-dark);
     font: inherit;
@@ -272,10 +333,10 @@
 .settings__error {
   display: inline-flex;
   align-items: center;
-  gap: 0.4em;
-  margin: 0 var(--space-6) var(--space-5);
-  padding: 0.3em 0.6em;
-  border-radius: calc(var(--border-radius) / 2.5);
+  gap: 0.5em;
+  margin: 0 0 var(--space-5);
+  padding: 0.55em 0.9em;
+  border-radius: var(--border-radius);
   background: var(--clr-rejected-transparent);
   color: var(--clr-rejected-text);
   font-size: 0.85rem;
@@ -304,7 +365,7 @@
   gap: var(--space-2);
   height: 2.9rem;
   padding: 0 var(--space-5);
-  border-radius: 999px;
+  border-radius: var(--border-radius);
   background: var(--clr-dark);
   color: var(--clr-light);
   box-shadow: var(--box-shadow);
@@ -407,4 +468,116 @@
     background: transparent;
     transform: none;
   }
+}
+
+/* Plan tab: two plan cards with a perk checklist each. */
+.settings__card-head:has(.settings__badge) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.settings__plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--space-4);
+  margin: var(--space-5) 0;
+}
+
+.settings__plan {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  background: var(--clr-white);
+  border: 1px solid var(--clr-grey-dark);
+  border-radius: var(--border-radius);
+
+  h3 {
+    margin: 0;
+    font-size: 1.3rem;
+  }
+
+  &.settings__plan--premium {
+    border: 2px solid var(--clr-accent);
+  }
+}
+
+.settings__plan-tag {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--clr-accent);
+}
+
+.settings__plan-price {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.settings__plan-note {
+  margin: 0 0 var(--space-3);
+  font-size: 0.85rem;
+  opacity: 0.65;
+}
+
+.settings__plan-cta {
+  width: 100%;
+  margin: var(--space-2) 0 var(--space-3);
+}
+
+.settings__perks {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-4) 0 0;
+  border-top: 1px solid var(--clr-grey);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+
+  li {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    font-size: 0.9rem;
+  }
+
+  svg {
+    flex: none;
+    width: 1.1rem;
+    aspect-ratio: 1;
+    margin-top: 0.1rem;
+  }
+
+  strong {
+    display: block;
+    font-weight: 600;
+  }
+
+  span {
+    opacity: 0.85;
+  }
+}
+
+.settings__code {
+  display: block;
+  width: fit-content;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--border-radius);
+  background: var(--clr-grey);
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  user-select: all;
+}
+
+/* Tighter hand-off from the profile list to the "Add a job profile" form. */
+.settings__row--stack:has(.settings__profiles) {
+  padding-bottom: var(--space-1);
+}
+
+.settings__add-profile {
+  padding-top: var(--space-1);
 }

@@ -131,14 +131,18 @@ export async function setActiveJobProfile(profile: { id: string; name: string })
   await browser.storage.local.set({ [DEFAULT_PROFILE_KEY]: { id: profile.id, name: profile.name } });
 }
 
-export async function getAllJobs(): Promise<Job[]> {
+// `refresh: false` serves the local cache without touching the network even
+// with Cloud Sync on — for re-renders (paging, filtering, local edits) where
+// nothing new could have arrived. The default still pulls from the cloud.
+export async function getAllJobs(options: { refresh?: boolean } = {}): Promise<Job[]> {
+  const { refresh = true } = options;
   await ensureSession();
 
   // Cloud Sync off: only ever show what this device itself has saved —
   // the local cache, kept current by addJob/updateJob/deleteJob's
   // write-through. On: also pick up jobs saved from other devices under
   // the same account.
-  if (await isSyncEnabled()) {
+  if (refresh && (await isSyncEnabled())) {
     const supabase = getSupabaseClient();
     const { data: userData } = await supabase.auth.getUser();
     const userId = userData?.user?.id;
@@ -151,7 +155,12 @@ export async function getAllJobs(): Promise<Job[]> {
         .order("date_applied", { ascending: false })
         .order("created_at", { ascending: false });
       if (!error) {
-        const jobs = (data || []).map(rowToJob);
+        // Edits not pushed yet are newer than the remote rows — lay them on top.
+        const pending = await readPending();
+        const jobs = ((data || []) as any[])
+          .map(rowToJob)
+          .map((j: Job) => (pending[j.id] ? { ...j, ...pending[j.id] } : j))
+          .filter((j: Job) => !j.deleted);
         await cacheJobs(jobs);
         return jobs;
       }
@@ -198,60 +207,104 @@ export async function addJob(
   return { status: data.status === "limit" ? "limit" : "duplicate" };
 }
 
+// --- Edits: local first, pushed to Supabase in batches -----------------------
+// Every edit (status, notes, fields, soft delete/restore) lands in the local
+// cache immediately and is recorded in a per-job pending patch. The patches
+// are pushed to Supabase by flushPendingUpdates() — called on dashboard load,
+// periodically, and when the page is hidden — and only while Cloud Sync is
+// on. With sync off they just stay queued locally (and go up the next time
+// sync is turned on), so a burst of edits costs one request per job instead
+// of one per keystroke/click.
+
+type JobEdits = Partial<
+  Pick<Job, "status" | "notes" | "jobTitle" | "company" | "location" | "url" | "deleted">
+>;
+
+const PENDING_KEY = "liber_pending_updates";
+
+async function readPending(): Promise<Record<string, JobEdits>> {
+  const result = (await browser.storage.local.get(PENDING_KEY)) as Record<
+    string,
+    Record<string, JobEdits>
+  >;
+  return result[PENDING_KEY] || {};
+}
+
+async function writePending(pending: Record<string, JobEdits>): Promise<void> {
+  await browser.storage.local.set({ [PENDING_KEY]: pending });
+}
+
+async function editJobLocally(id: string, updates: JobEdits): Promise<Job | null> {
+  const cached = await readJobsCache();
+  const idx = cached.findIndex((j) => j.id === id);
+  if (idx === -1) return null;
+
+  const job: Job = { ...cached[idx]!, ...updates, updatedAt: new Date().toISOString() };
+  cached[idx] = job;
+  await cacheJobs(cached);
+
+  const pending = await readPending();
+  pending[id] = { ...pending[id], ...updates };
+  await writePending(pending);
+  return job;
+}
+
 export async function updateJob(
   id: string,
   updates: Partial<Pick<Job, "status" | "notes" | "jobTitle" | "company" | "location" | "url">>,
 ): Promise<Job | null> {
-  await ensureSession();
-  const supabase = getSupabaseClient();
-
-  const { data, error } = await supabase.functions.invoke<{ status: string; job?: any }>(
-    "update-job",
-    { body: { jobId: id, updates } },
-  );
-  if (error) throw error;
-  if (!data?.job) return null;
-
-  const job = rowToJob(data.job);
-  const cached = await readJobsCache();
-  const idx = cached.findIndex((j) => j.id === id);
-  if (idx !== -1) cached[idx] = job;
-  await cacheJobs(cached);
-
-  return job;
+  return editJobLocally(id, updates);
 }
 
-// Soft delete — update-job with deleted:true, same as any other edit.
+// Soft delete — the same pending-patch path as any other edit.
 export async function deleteJob(id: string): Promise<void> {
-  await ensureSession();
-  const supabase = getSupabaseClient();
-  const { error } = await supabase.functions.invoke("update-job", {
-    body: { jobId: id, updates: { deleted: true } },
-  });
-  if (error) throw error;
-
-  const cached = await readJobsCache();
-  const idx = cached.findIndex((j) => j.id === id);
-  if (idx !== -1) {
-    cached[idx] = { ...cached[idx]!, deleted: true };
-    await cacheJobs(cached);
-  }
+  await editJobLocally(id, { deleted: true });
 }
 
 // Undo for deleteJob — the same soft-delete flag, flipped back.
 export async function restoreJob(id: string): Promise<void> {
+  await editJobLocally(id, { deleted: false });
+}
+
+let flushInFlight: Promise<void> | null = null;
+
+// Pushes every queued patch to Supabase (one update-job call per edited job).
+// No-op unless Cloud Sync is on. A patch is only cleared if it hasn't been
+// edited again while the request was in flight; a failed request keeps it
+// queued for the next flush.
+export function flushPendingUpdates(): Promise<void> {
+  flushInFlight ??= doFlush().finally(() => {
+    flushInFlight = null;
+  });
+  return flushInFlight;
+}
+
+async function doFlush(): Promise<void> {
+  if (!(await isSyncEnabled())) return;
+  const snapshot = await readPending();
+  const ids = Object.keys(snapshot);
+  if (!ids.length) return;
+
   await ensureSession();
   const supabase = getSupabaseClient();
-  const { error } = await supabase.functions.invoke("update-job", {
-    body: { jobId: id, updates: { deleted: false } },
-  });
-  if (error) throw error;
 
-  const cached = await readJobsCache();
-  const idx = cached.findIndex((j) => j.id === id);
-  if (idx !== -1) {
-    cached[idx] = { ...cached[idx]!, deleted: false };
-    await cacheJobs(cached);
+  for (const id of ids) {
+    const sent = snapshot[id]!;
+    const { error } = await supabase.functions.invoke("update-job", {
+      body: { jobId: id, updates: sent },
+    });
+    if (error) {
+      console.warn("flushPendingUpdates: update failed, will retry", error);
+      continue;
+    }
+    const pending = await readPending();
+    const current = pending[id];
+    if (!current) continue;
+    for (const key of Object.keys(sent) as (keyof JobEdits)[]) {
+      if (current[key] === sent[key]) delete current[key];
+    }
+    if (Object.keys(current).length === 0) delete pending[id];
+    await writePending(pending);
   }
 }
 

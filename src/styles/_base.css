@@ -75,9 +75,18 @@
   --clr-offer-text: hsl(142, 71%, 25%);
   --clr-offer-dot: hsl(142, 71%, 40%);
 
-  --border-radius: 0.95rem;
+  --border-radius: 0.75rem;
 
   --box-shadow: var(--theme-light-shadow);
+
+  /* Faint edge shadow for the sidebar: lighter than the card shadow so the
+     full-height panel doesn't dominate the page. */
+  --shadow-aside: 4px 0 16px -12px rgba(15, 23, 42, 0.1);
+
+  /* Soft lifted-card shadow for the table card. */
+  --shadow-panel:
+    0 1px 1px rgba(15, 23, 42, 0.02),
+    0 8px 24px -16px rgba(15, 23, 42, 0.08);
 
   --space-1: 0.25em;
   --space-2: 0.5em;
@@ -128,6 +137,10 @@
     --clr-offer-dot: hsl(142, 60%, 60%);
 
     --box-shadow: var(--theme-dark-shadow);
+    --shadow-aside: 4px 0 16px -12px rgba(0, 0, 0, 0.3);
+    --shadow-panel:
+      0 1px 1px rgba(0, 0, 0, 0.15),
+      0 10px 28px -18px rgba(0, 0, 0, 0.45);
 
     .dashboard__theme-toggle {
       .theme-icon-sun {
@@ -188,7 +201,7 @@ button {
   width: 100%;
   padding: var(--space-4);
   border: none;
-  border-radius: calc(var(--border-radius) * 2);
+  border-radius: var(--border-radius);
   background: var(--clr-accent);
   color: var(--clr-light);
   font-weight: 600;
@@ -241,6 +254,19 @@ button {
     background: var(--clr-accent-transparent);
     transform: none;
   }
+}
+
+/* Text for assistive tech only, e.g. the name of an icon-only column. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 .logo {
