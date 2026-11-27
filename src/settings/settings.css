@@ -1,0 +1,583 @@
+/* Settings page. Reuses the dashboard's sidebar/corner/switch styles
+   (dashboard-full.css) — only the content cards, form controls, toast and
+   delete dialog are defined here. The base `button`/`input` rules in
+   _base.css are full-width accent-filled, so every control below resets
+   width/background explicitly. */
+
+.settings {
+  max-width: 50rem;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+
+  .settings__header {
+    h1 {
+      margin: 0 0 var(--space-2);
+      font-size: 2.5rem;
+    }
+
+    p {
+      margin: 0;
+      opacity: 0.62;
+      font-size: 0.95rem;
+    }
+  }
+}
+
+/* Section switcher: one pill per section, the selected one filled. Only the
+   selected section's panel is shown. */
+.settings__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: var(--space-2);
+}
+
+.settings__tab {
+  width: auto;
+  height: 2.6rem;
+  padding: 0 var(--space-5);
+  border: none;
+  border-radius: var(--border-radius);
+  background: transparent;
+  color: var(--clr-dark);
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-box-trim: none;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--clr-grey);
+    transform: none;
+  }
+
+  &[aria-selected="true"] {
+    background: var(--clr-grey);
+    font-weight: 700;
+  }
+}
+
+.settings__card {
+  padding-inline: var(--space-5);
+}
+
+.settings__card[hidden] {
+  display: none;
+}
+
+.settings__card-head {
+  margin-bottom: var(--space-2);
+
+  h2 {
+    margin: 0;
+    font-size: 1.25rem;
+  }
+}
+
+.settings__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-8);
+  padding: var(--space-4) 0;
+
+  &.settings__row--stack {
+    flex-direction: column;
+    align-items: stretch;
+    row-gap: var(--space-8);
+
+    /* The 18rem flex-basis is a width for side-by-side rows; in a column
+       it would become an 18rem-tall gap. */
+    .settings__text {
+      flex: none;
+    }
+  }
+
+  &.settings__row--form,
+  &.settings__add-profile {
+    align-items: flex-end;
+  }
+}
+
+.settings__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 18rem;
+}
+
+.settings__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+
+  &.settings__title--danger {
+    color: var(--clr-rejected-text);
+  }
+}
+
+.settings__desc {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.65;
+}
+
+.settings__field {
+  flex: 1 1 18rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+
+  label {
+    font-size: 0.9rem;
+    line-height: 1.5rem;
+  }
+
+  /* Warning sits directly under its input, left edges aligned. */
+  .settings__error {
+    align-self: flex-start;
+    margin: 0;
+  }
+
+  input {
+    height: 3.2rem;
+    padding: 0 var(--space-4);
+    font-size: 1rem;
+  }
+}
+
+/* Profile card: avatar + name field + Save on one line. */
+/* Top-aligned (not bottom) so the warning appearing under the input doesn't
+   push the avatar or Save button around; their margins below line them up
+   with the 3.2rem input (label 1.5rem + 0.5em gap above it). */
+.settings__name-form {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  padding: var(--space-4) 0;
+}
+
+.settings__name-form .settings__big-avatar {
+  margin-top: 1.6rem;
+}
+
+.settings__name-form .settings__btn {
+  margin-top: 2.15rem;
+}
+
+.settings__big-avatar {
+  flex: none;
+  width: 4rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--clr-accent);
+  color: var(--clr-white);
+  font-family: var(--heading-font-family);
+  font-size: 1.5rem;
+  font-weight: 700;
+  /* Trim the font's own ascent/descent space so the letter sits at the true
+     centre of the circle. */
+  line-height: 1;
+  text-box: trim-both cap alphabetic;
+}
+
+/* Buttons */
+.settings__btn {
+  width: auto;
+  flex: none;
+  height: 2.9rem;
+  padding: 0 var(--space-5);
+  border-radius: var(--border-radius);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+
+  svg {
+    width: 1.05rem;
+    aspect-ratio: 1;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  &.settings__btn--primary {
+    background: var(--clr-accent);
+    color: var(--clr-white);
+    font-weight: 700;
+
+    &:hover:not(:disabled),
+    &:focus-visible {
+      background: var(--clr-accent-hover);
+    }
+  }
+
+  &.settings__btn--ghost {
+    background: transparent;
+    color: var(--clr-dark);
+    border: 1px solid var(--clr-grey-dark);
+
+    &:hover:not(:disabled),
+    &:focus-visible {
+      background: var(--clr-grey);
+    }
+  }
+
+  &.settings__btn--danger-ghost {
+    background: transparent;
+    color: var(--clr-rejected-text);
+    border: 1px solid color-mix(in srgb, var(--clr-rejected-text) 40%, transparent);
+
+    &:hover:not(:disabled),
+    &:focus-visible {
+      background: var(--clr-rejected-transparent);
+    }
+  }
+
+  &.settings__btn--danger {
+    background: var(--clr-rejected-dot);
+    color: var(--clr-light);
+    font-weight: 700;
+
+    &:hover:not(:disabled),
+    &:focus-visible {
+      background: var(--clr-rejected-dot);
+      filter: brightness(0.9);
+    }
+  }
+}
+
+/* Job profile list */
+.settings__profiles {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.settings__profile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--clr-grey);
+
+  /* The row's own gap already separates the list from the description. */
+  &:first-child {
+    padding-top: 0;
+  }
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  .settings__profile-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+
+  .settings__btn {
+    height: 2.2rem;
+    padding: 0 var(--space-4);
+    font-size: 0.85rem;
+  }
+}
+
+.settings__badge {
+  flex: none;
+  padding: 0.25em 0.8em;
+  border-radius: var(--border-radius);
+  background: var(--clr-accent-transparent);
+  color: var(--clr-accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+/* Export: profile picker + button */
+.settings__export {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+
+  select {
+    height: 2.9rem;
+    max-width: 14rem;
+    padding: 0 var(--space-4);
+    border: 0;
+    border-radius: var(--border-radius);
+    background: var(--clr-grey);
+    color: var(--clr-dark);
+    font: inherit;
+    font-size: 0.95rem;
+  }
+}
+
+/* Inline validation, same look as onboarding's .auth-field__error. */
+.settings__error {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  margin: 0 0 var(--space-5);
+  padding: 0.55em 0.9em;
+  border-radius: var(--border-radius);
+  background: var(--clr-rejected-transparent);
+  color: var(--clr-rejected-text);
+  font-size: 0.85rem;
+  font-weight: 600;
+
+  svg {
+    flex: none;
+    width: 0.95rem;
+    aspect-ratio: 1;
+  }
+}
+
+.settings__field input[aria-invalid="true"] {
+  outline: 2px solid color-mix(in srgb, var(--clr-rejected-text) 55%, transparent);
+}
+
+/* Toast */
+.settings__toast {
+  position: fixed;
+  left: 50%;
+  bottom: var(--space-8);
+  z-index: 70;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 2.9rem;
+  padding: 0 var(--space-5);
+  border-radius: var(--border-radius);
+  background: var(--clr-dark);
+  color: var(--clr-light);
+  box-shadow: var(--box-shadow);
+  font-size: 0.9rem;
+  font-weight: 600;
+  animation: settings-toast-in 200ms ease-out;
+
+  svg {
+    width: 1.05rem;
+    aspect-ratio: 1;
+  }
+}
+
+@keyframes settings-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+}
+
+/* Delete-account dialog */
+.settings__dialog {
+  width: min(30rem, calc(100% - 2rem));
+  padding: var(--space-6);
+  border: 1px solid var(--clr-grey);
+  border-radius: var(--border-radius);
+  background: var(--clr-white);
+  color: var(--clr-dark);
+  box-shadow: var(--box-shadow);
+
+  &::backdrop {
+    background: rgba(15, 23, 42, 0.5);
+  }
+
+  h2 {
+    margin: var(--space-4) 0 0;
+    font-size: 1.4rem;
+  }
+
+  p {
+    margin: var(--space-2) 0 0;
+    font-size: 0.95rem;
+    line-height: 1.55;
+    opacity: 0.8;
+  }
+
+  label {
+    display: block;
+    margin-top: var(--space-5);
+    font-size: 0.9rem;
+  }
+
+  input {
+    margin-top: var(--space-2);
+    height: 3rem;
+    padding: 0 var(--space-4);
+    letter-spacing: 0.04em;
+  }
+
+  .settings__error {
+    margin: var(--space-3) 0 0;
+    opacity: 1;
+  }
+}
+
+.settings__dialog-icon {
+  width: 2.75rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--clr-rejected-transparent);
+  color: var(--clr-rejected-text);
+
+  svg {
+    width: 1.25rem;
+    aspect-ratio: 1;
+  }
+}
+
+.settings__dialog-actions {
+  margin-top: var(--space-6);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.settings__link-btn {
+  width: auto;
+  margin-top: var(--space-3);
+  padding: 0;
+  background: transparent;
+  color: var(--clr-accent);
+  font-size: 0.9rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+
+  &:hover,
+  &:focus-visible {
+    background: transparent;
+    transform: none;
+  }
+}
+
+/* Plan tab: two plan cards with a perk checklist each. */
+.settings__card-head:has(.settings__badge) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.settings__plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--space-4);
+  margin: var(--space-5) 0;
+}
+
+.settings__plan {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  background: var(--clr-white);
+  border: 1px solid var(--clr-grey-dark);
+  border-radius: var(--border-radius);
+
+  h3 {
+    margin: 0;
+    font-size: 1.3rem;
+  }
+
+  &.settings__plan--premium {
+    border: 2px solid var(--clr-accent);
+  }
+}
+
+.settings__plan-tag {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--clr-accent);
+}
+
+.settings__plan-price {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.settings__plan-note {
+  margin: 0 0 var(--space-3);
+  font-size: 0.85rem;
+  opacity: 0.65;
+}
+
+.settings__plan-cta {
+  width: 100%;
+  margin-top: var(--space-3);
+}
+
+.settings__perks {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-4) 0 0;
+  border-top: 1px solid var(--clr-grey);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+
+  li {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    font-size: 0.9rem;
+  }
+
+  svg {
+    flex: none;
+    width: 1.1rem;
+    aspect-ratio: 1;
+    margin-top: 0.1rem;
+  }
+
+  strong {
+    display: block;
+    font-weight: 600;
+  }
+
+  span {
+    opacity: 0.85;
+  }
+}
+
+.settings__code {
+  display: block;
+  width: fit-content;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--border-radius);
+  background: var(--clr-grey);
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  user-select: all;
+}
+
+/* Tighter hand-off from the profile list to the "Add a job profile" form. */
+.settings__row--stack:has(.settings__profiles) {
+  padding-bottom: var(--space-1);
+}
+
+.settings__add-profile {
+  padding-top: var(--space-1);
+}

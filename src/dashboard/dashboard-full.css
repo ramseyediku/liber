@@ -1,9 +1,10 @@
 @import "../styles/_base.css";
 @import "./dashboard-shared.css";
+@import "../../vendor/driver.css";
 
 .dashboard {
   display: grid;
-  grid-template-columns: 22rem 1fr 5rem;
+  grid-template-columns: 22rem 1fr;
   min-height: 100vh;
   background: var(--clr-light);
   transition: grid-template-columns 280ms ease;
@@ -15,21 +16,13 @@
   }
 
   &.is-sidebar-collapsed {
-    grid-template-columns: 5.5rem 1fr 5rem;
-  }
-
-  @media (max-width: 1024px) {
-    grid-template-columns: 20rem 1fr;
-
-    &.is-sidebar-collapsed {
-      grid-template-columns: 5.5rem 1fr;
-    }
+    grid-template-columns: 5.5rem 1fr;
   }
 
   @media (max-width: 600px) {
     grid-template-columns: 1fr;
 
-    /* Same specificity as the collapsed rules above (two classes), so
+    /* Same specificity as the collapsed rule above (two classes), so
        without this the collapsed sidebar's 5.5rem column would win on
        source order and never actually stack to one column on mobile. */
     &.is-sidebar-collapsed {
@@ -38,14 +31,22 @@
   }
 
   .dashboard__aside {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: 100vh;
+    box-shadow: var(--shadow-aside);
     display: flex;
     flex-direction: column;
-    padding: var(--space-7) var(--space-5);
-    background: var(--clr-sidebar);
+    padding: var(--space-6) var(--space-4);
+    /* Same surface token as the table card, so the two can't drift apart. */
+    background: var(--clr-white);
     color: var(--clr-dark);
     overflow: hidden;
 
     @media (max-width: 600px) {
+      position: static;
+      height: auto;
       flex-direction: row;
       align-items: center;
       flex-wrap: wrap;
@@ -161,10 +162,12 @@
     .dashboard__link {
       display: flex;
       align-items: center;
-      gap: var(--space-1);
-      padding: var(--space-2) var(--space-1);
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      margin-bottom: var(--space-1);
       border-radius: var(--border-radius);
       color: var(--clr-dark);
+      font-size: 1.05rem;
       font-weight: 500;
 
       svg {
@@ -172,10 +175,13 @@
         width: var(--space-6);
         margin: var(--space-1);
         aspect-ratio: 1;
+      }
 
-        .dashboard.is-sidebar-collapsed & {
-          margin-right: 0;
-        }
+      /* Collapsed: no gap or label width left over, so the icon sits dead
+         centre of the link. */
+      .dashboard.is-sidebar-collapsed & {
+        justify-content: center;
+        gap: 0;
       }
 
       &:hover,
@@ -186,7 +192,7 @@
         svg {
           color: var(--clr-accent);
           /* Fill is inherited by the <use>-referenced shapes below (they
-             set no fill of their own), so this colors all four rects of
+             set no fill of their own), so this colors all four circles of
              the job icon without needing to reach into its shadow tree. */
           fill: var(--clr-accent);
         }
@@ -204,111 +210,74 @@
         flex: 1;
       }
     }
-
-    /* Pinned to the bottom of the sidebar, left-aligned with the nav icons
-       above it — matches the new design's sidebar footer slot. Opens the
-       same profile popover as the popup's avatar (see openProfilePopover in
-       dashboard-core.js). */
-    .dashboard__sidebar-profile {
-      margin-top: auto;
-      display: flex;
-      align-items: center;
-      gap: var(--space-3);
-      padding: var(--space-2);
-      width: 100%;
-      background: none;
-      text-align: left;
-      border-radius: 14px;
-
-      &:hover,
-      &:focus {
-        background: var(--clr-accent-transparent);
-        transform: none;
-      }
-
-      /* Collapsed: shrink to just the avatar and center it in the column,
-         same pattern as .dashboard__sidebar-toggle above — otherwise the
-         button stays full-width and the hover highlight sits off-center. */
-      .dashboard.is-sidebar-collapsed & {
-        width: auto;
-        align-self: center;
-        justify-content: center;
-        padding: 0;
-        gap: 0;
-
-        &:hover,
-        &:focus {
-          background-color: none;
-        }
-      }
-
-      @media (max-width: 600px) {
-        margin-top: 0;
-        margin-left: auto;
-        width: auto;
-      }
-    }
-
-    .dashboard__avatar--sidebar {
-      flex: none;
-    }
-
-    .dashboard__sidebar-profile-text {
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-      max-width: 10rem;
-      overflow: hidden;
-      opacity: 1;
-      transition:
-        max-width 280ms ease,
-        opacity 160ms ease;
-
-      .dashboard.is-sidebar-collapsed & {
-        max-width: 0;
-        opacity: 0;
-      }
-    }
-
-    .dashboard__sidebar-profile-name,
-    .dashboard__sidebar-profile-profession {
-      margin: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .dashboard__sidebar-profile-name {
-      font-size: 0.95rem;
-      font-weight: 700;
-      font-family: var(--heading-font-family);
-      color: var(--clr-dark);
-    }
-
-    .dashboard__sidebar-profile-profession {
-      font-size: 0.75rem;
-      color: var(--clr-dark);
-      opacity: 0.65;
-    }
   }
 
   .dashboard__main {
+    position: relative;
     min-width: 0;
-    padding: var(--space-6);
+    padding: var(--space-8) var(--space-6) var(--space-6);
 
+    /* Row 1: title on the left, theme toggle / login on the right.
+       Row 2: the greeting, directly under the title. */
     .dashboard__header {
-      padding-bottom: var(--space-4);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: var(--space-2) var(--space-8);
+      padding-bottom: var(--space-10, 3rem);
 
       h1 {
-        margin: 0 0 var(--space-3);
+        grid-column: 1;
+        grid-row: 1;
+        margin: 0;
         font-size: 2.5rem;
+      }
+
+      .dashboard__corner {
+        position: static;
+        grid-column: 2;
+        grid-row: 1;
+      }
+
+      .dashboard__greeting {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        margin: 0;
       }
     }
 
     .dashboard__table-wrap {
+      min-height: calc(var(--table-head-h) + var(--table-row-h) * 9);
+
       .dashboard__table {
+        /* Fixed layout so long company/title text truncates inside its
+           column instead of widening the table past the viewport and
+           pushing Status and Date off-screen. */
+        table-layout: fixed;
+        min-width: 44rem;
+
+        th:nth-child(1) { width: 18%; }
+        th:nth-child(2) { width: 22%; }
+        th:nth-child(3) { width: 14%; }
+        th:nth-child(4) { width: 9rem; }
+        th:nth-child(5) { width: 11.5rem; }
+        th:nth-child(6) { width: 9.5rem; }
+        th:nth-child(7) { width: 4.5rem; }
+
         .dashboard__col--full {
           display: table-cell;
+        }
+
+        /* With the sidebar open, a narrow window can't hold seven columns.
+           Location and the Notes button drop first (both are one click away
+           in the detail panel) so Status and Date stay on screen. */
+        @media (max-width: 1100px) {
+          min-width: 30rem;
+
+          .dashboard__col--location,
+          .dashboard__col--notes {
+            display: none;
+          }
         }
 
         /* Drops the Location/Date columns on mobile — the wrap's own
@@ -319,31 +288,6 @@
           }
         }
       }
-    }
-  }
-
-  /* Third column: theme toggle */
-  .dashboard__rail {
-    padding: var(--space-6) 0;
-    width: max-content;
-
-    .dashboard__theme-toggle {
-      width: var(--space-12);
-
-      svg {
-        width: var(--space-5);
-      }
-    }
-
-    @media (max-width: 1024px) {
-      grid-column: 1 / -1;
-      flex-direction: row;
-      justify-content: flex-end;
-      padding: 0 var(--space-6) var(--space-4);
-    }
-
-    @media (max-width: 600px) {
-      grid-column: 1;
     }
   }
 }
@@ -450,8 +394,7 @@
 
 .dashboard__detail-position {
   font-size: 0.8rem;
-  color: var(--clr-dark);
-  opacity: 0.65;
+  color: var(--clr-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -466,7 +409,7 @@
   aspect-ratio: 1;
   padding: 0;
   border: none;
-  border-radius: 0.6rem;
+  border-radius: var(--border-radius);
   background: transparent;
   color: var(--clr-dark);
   display: grid;
@@ -521,8 +464,7 @@
   margin-bottom: var(--space-2);
   font-size: 0.78rem;
   font-weight: 600;
-  color: var(--clr-dark);
-  opacity: 0.65;
+  color: var(--clr-muted);
 }
 
 .dashboard__detail-status {
@@ -536,7 +478,7 @@
   height: 2.5rem;
   padding: 0 var(--space-3);
   border: 1px solid var(--clr-grey-dark);
-  border-radius: calc(var(--border-radius) / 2);
+  border-radius: var(--border-radius);
   background: transparent;
   color: var(--clr-dark);
   font: inherit;
@@ -555,7 +497,8 @@
   &[aria-checked="true"] {
     border-color: transparent;
     background: var(--clr-accent-transparent);
-    color: var(--clr-accent);
+    /* accent-hover, not accent: accent on its own 10% tint is 4.49:1 in light. */
+    color: var(--clr-accent-hover);
     font-weight: 600;
 
     &:hover,
@@ -584,8 +527,7 @@
   font-size: 0.9rem;
 
   dt {
-    color: var(--clr-dark);
-    opacity: 0.65;
+    color: var(--clr-muted);
   }
 
   dd {
@@ -603,8 +545,7 @@
   > span {
     font-size: 0.78rem;
     font-weight: 600;
-    color: var(--clr-dark);
-    opacity: 0.65;
+    color: var(--clr-muted);
   }
 }
 
@@ -624,13 +565,7 @@
   caret-color: var(--clr-accent);
 
   &::placeholder {
-    color: var(--clr-dark);
-    opacity: 0.45;
-  }
-
-  &:focus,
-  &:hover {
-    outline: none;
+    color: var(--clr-muted);
   }
 }
 
@@ -649,7 +584,7 @@
   padding: 0 var(--space-3);
   margin-left: calc(var(--space-3) * -1);
   border: none;
-  border-radius: calc(var(--border-radius) / 2);
+  border-radius: var(--border-radius);
   background: transparent;
   color: var(--clr-rejected-text);
   font: inherit;
@@ -677,7 +612,7 @@
   height: 2.5rem;
   padding: 0 var(--space-4);
   border: none;
-  border-radius: calc(var(--border-radius) / 2);
+  border-radius: var(--border-radius);
   background: transparent;
   color: var(--clr-dark);
   font: inherit;
@@ -693,4 +628,606 @@
 
 .dashboard__table tbody tr:hover .dashboard__delete {
   opacity: 1;
+}
+
+/* First-run tour (driver.js) — see tour.ts. Restyles driver's own markup
+   to match the rest of the app instead of its default white/grey look.
+   The arrow's per-side rules each override only their one visible color
+   (the others stay transparent, set by driver.css) — anything broader
+   would repaint all four and square off the triangle. */
+.liber-tour-popover {
+  font-family: var(--body-font-family);
+  color: var(--clr-dark);
+  background: var(--clr-white);
+  border: 1px solid var(--clr-grey-dark);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  max-width: 21rem;
+  padding: var(--space-5);
+}
+
+.liber-tour-popover .driver-popover-title {
+  font-family: var(--heading-font-family);
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--clr-dark);
+  padding-right: var(--space-6);
+}
+
+.liber-tour-popover .driver-popover-description {
+  margin-top: var(--space-2);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--clr-dark);
+  opacity: 0.8;
+}
+
+.liber-tour-popover .driver-popover-close-btn {
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--border-radius);
+  color: var(--clr-dark);
+  opacity: 0.55;
+  font-size: 1.1rem;
+
+  &:hover,
+  &:focus-visible {
+    opacity: 1;
+    background: var(--clr-grey);
+  }
+}
+
+.liber-tour-popover .driver-popover-footer {
+  margin-top: var(--space-5);
+}
+
+.liber-tour-popover .driver-popover-progress-text {
+  color: var(--clr-muted);
+  font-size: 0.8rem;
+}
+
+.liber-tour-popover .driver-popover-footer-btn {
+  width: auto;
+  padding: 0 var(--space-4);
+  height: 2.25rem;
+  border: 1px solid var(--clr-grey-dark);
+  border-radius: var(--border-radius);
+  background: transparent;
+  color: var(--clr-dark);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 2.25rem;
+  transition: background-color 150ms ease-in-out;
+
+  &:hover,
+  &:focus {
+    background: var(--clr-grey);
+  }
+}
+
+.liber-tour-popover .driver-popover-next-btn,
+.liber-tour-popover .driver-popover-done-btn {
+  border-color: transparent;
+  background: var(--clr-accent);
+  color: var(--clr-white);
+
+  &:hover,
+  &:focus {
+    background: var(--clr-accent-hover);
+  }
+}
+
+.liber-tour-popover .driver-popover-arrow-side-left {
+  border-left-color: var(--clr-white);
+}
+
+.liber-tour-popover .driver-popover-arrow-side-right {
+  border-right-color: var(--clr-white);
+}
+
+.liber-tour-popover .driver-popover-arrow-side-top {
+  border-top-color: var(--clr-white);
+}
+
+.liber-tour-popover .driver-popover-arrow-side-bottom {
+  border-bottom-color: var(--clr-white);
+}
+
+/* --- Table toolbar: status filter chips, search, sortable headers ------- */
+
+.dashboard__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.dashboard__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.dashboard__chip {
+  width: auto;
+  height: 2.2rem;
+  padding: 0 var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  border: 1px solid var(--clr-grey-dark);
+  border-radius: var(--border-radius);
+  background: var(--clr-white);
+  color: var(--clr-dark);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-box-trim: none;
+
+  .dashboard__status-dot {
+    flex: none;
+    width: 0.5rem;
+    aspect-ratio: 1;
+    border-radius: 50%;
+  }
+
+  &:hover {
+    background: var(--clr-grey);
+    transform: none;
+  }
+
+  /* A selected status chip takes its status pill's colours (fill, text, border). */
+  &[aria-pressed="true"].dashboard__chip--applied { border-color: var(--clr-applied); background: var(--clr-applied); color: var(--clr-applied-text); }
+  &[aria-pressed="true"].dashboard__chip--interviewing { border-color: var(--clr-interviewing); background: var(--clr-interviewing); color: var(--clr-interviewing-text); }
+  &[aria-pressed="true"].dashboard__chip--offer { border-color: var(--clr-offer); background: var(--clr-offer); color: var(--clr-offer-text); }
+  &[aria-pressed="true"].dashboard__chip--rejected { border-color: var(--clr-rejected); background: var(--clr-rejected); color: var(--clr-rejected-text); }
+  &[aria-pressed="true"].dashboard__chip--withdrawn { border-color: var(--clr-withdrawn); background: var(--clr-withdrawn); color: var(--clr-dark); }
+
+  &[aria-pressed="true"] {
+    border-color: var(--clr-accent);
+    background: var(--clr-accent-transparent);
+    color: var(--clr-accent-hover);
+  }
+}
+
+.dashboard__chip-count {
+  font-weight: 500;
+  color: var(--clr-muted);
+
+  [aria-pressed="true"] > & {
+    color: inherit;
+  }
+}
+
+/* Search + Add, kept together at the end of the toolbar. */
+.dashboard__toolbar-end {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1 1 22rem;
+  max-width: 34rem;
+  margin-inline-start: auto;
+
+  /* Once the chips need two rows, search and Add take their own full row. */
+  @media (max-width: 1100px) {
+    flex-basis: 100%;
+    max-width: none;
+    margin-inline-start: 0;
+  }
+}
+
+.dashboard__search {
+  position: relative;
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+
+  svg {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: var(--space-3);
+    width: 1.1rem;
+    height: 100%;
+    color: var(--clr-muted);
+    pointer-events: none;
+  }
+
+  input {
+    height: 2.4rem;
+    padding: 0 var(--space-4) 0 2.4rem;
+    border-radius: var(--border-radius);
+    font-size: 0.85rem;
+
+    &::placeholder {
+      color: var(--clr-muted);
+    }
+  }
+}
+
+/* Header text that sorts; the arrow only shows once a column is the sort. */
+.dashboard__sort {
+  width: auto;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-box-trim: none;
+  border-radius: var(--border-radius);
+
+  svg {
+    width: 0.9rem;
+    aspect-ratio: 1;
+    opacity: 0.4;
+    transition: transform 160ms ease;
+  }
+
+  &:hover {
+    background: none;
+    color: var(--clr-dark);
+    transform: none;
+
+    svg {
+      opacity: 0.8;
+    }
+  }
+}
+
+th[aria-sort] .dashboard__sort {
+  color: var(--clr-dark);
+
+  svg {
+    opacity: 1;
+  }
+}
+
+th[aria-sort="ascending"] .dashboard__sort svg {
+  transform: rotate(180deg);
+}
+
+/* A table row's ring is clipped at the card's edges when drawn outside. */
+.dashboard__table tbody tr:focus-visible {
+  outline-offset: -2px;
+}
+
+/* "No matches" keeps the table header and offers a way back. */
+.dashboard__empty--no-match {
+  p {
+    margin: 0 auto var(--space-3);
+  }
+}
+
+.dashboard__link-btn {
+  width: auto;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--clr-grey-dark);
+  border-radius: var(--border-radius);
+  background: transparent;
+  color: var(--clr-dark);
+  font-size: 0.85rem;
+  text-box-trim: none;
+
+  &:hover {
+    background: var(--clr-grey);
+    transform: none;
+  }
+}
+
+/* --- Capture log: floating button + panel (dev tool, see captureLog.ts) --- */
+
+.capture-log {
+  position: fixed;
+  right: var(--space-6);
+  bottom: var(--space-6);
+  z-index: 60;
+}
+
+.capture-log__fab {
+  position: relative;
+  width: 2.9rem;
+  aspect-ratio: 1;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--clr-dark);
+  color: var(--clr-white);
+  box-shadow: var(--box-shadow);
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--clr-dark);
+    transform: none;
+    filter: brightness(1.2);
+  }
+
+  svg {
+    width: 1.25rem;
+    aspect-ratio: 1;
+  }
+}
+
+.capture-log__dot {
+  position: absolute;
+  top: 0.1rem;
+  right: 0.1rem;
+  width: 0.7rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--clr-accent);
+  border: 2px solid var(--clr-dark);
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.capture-log__panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + var(--space-3));
+  width: min(30rem, calc(100vw - 2rem));
+  max-height: min(34rem, 70vh);
+  display: flex;
+  flex-direction: column;
+  background: var(--clr-white);
+  color: var(--clr-dark);
+  border: 1px solid var(--clr-grey-dark);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  overflow: hidden;
+}
+
+.capture-log__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--clr-grey);
+
+  strong {
+    flex: 1;
+  }
+
+  button {
+    width: auto;
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--clr-grey-dark);
+    border-radius: var(--border-radius);
+    background: transparent;
+    color: var(--clr-dark);
+    font-size: 0.8rem;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--clr-grey);
+      transform: none;
+    }
+  }
+}
+
+.capture-log__body {
+  overflow: auto;
+  min-height: 0;
+}
+
+.capture-log__empty {
+  margin: 0;
+  padding: var(--space-5) var(--space-4);
+  font-size: 0.85rem;
+  color: var(--clr-muted);
+}
+
+.capture-log__summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--clr-grey);
+  font-size: 0.82rem;
+
+  dt {
+    color: var(--clr-muted);
+  }
+
+  dd {
+    margin: 0;
+    font-weight: 600;
+    word-break: break-word;
+  }
+}
+
+.capture-log__list details {
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--clr-grey);
+  font-size: 0.8rem;
+
+  summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-3);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  pre {
+    margin: var(--space-2) 0 0;
+    max-height: 10rem;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 0.75rem;
+    color: var(--clr-muted);
+  }
+}
+
+.capture-log__time,
+.capture-log__site {
+  color: var(--clr-muted);
+}
+
+.capture-log__site {
+  margin-left: auto;
+}
+
+/* --- Add an application by hand ------------------------------------------ */
+
+.dashboard__add-btn {
+  flex: none;
+  width: auto;
+  height: 2.4rem;
+  padding: 0 var(--space-4);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  border-radius: var(--border-radius);
+  background: var(--clr-accent);
+  color: var(--clr-white);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-box-trim: none;
+
+  svg {
+    width: 1rem;
+    aspect-ratio: 1;
+  }
+
+  &:hover {
+    transform: none;
+    background: var(--clr-accent-hover);
+  }
+}
+
+.dashboard__add-dialog {
+  width: min(36rem, calc(100% - 2rem));
+  max-height: calc(100dvh - 2rem);
+  padding: var(--space-6);
+  border: 1px solid var(--clr-grey);
+  border-radius: var(--border-radius);
+  background: var(--clr-white);
+  color: var(--clr-dark);
+  box-shadow: var(--shadow-panel, var(--box-shadow));
+
+  &::backdrop {
+    background: rgba(15, 23, 42, 0.5);
+  }
+
+  h2 {
+    margin: 0 0 var(--space-5);
+    font-size: 1.4rem;
+  }
+}
+
+.dashboard__add-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+
+  @media (max-width: 560px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+
+    > span {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--clr-muted);
+    }
+
+    small {
+      font-weight: 500;
+    }
+  }
+
+  input,
+  select,
+  textarea {
+    width: 100%;
+    box-sizing: border-box;
+    height: 2.6rem;
+    padding: 0 var(--space-3);
+    border: none;
+    border-radius: var(--border-radius);
+    background: var(--clr-grey);
+    color: var(--clr-dark);
+    font: inherit;
+    font-size: 0.9rem;
+  }
+
+  input:hover {
+    scale: none;
+  }
+
+  textarea {
+    height: auto;
+    min-height: 5rem;
+    padding: var(--space-3);
+    line-height: 1.5;
+    resize: vertical;
+  }
+}
+
+.dashboard__add-wide {
+  grid-column: 1 / -1;
+}
+
+.dashboard__add-error {
+  margin: var(--space-4) 0 0;
+  font-size: 0.85rem;
+  color: var(--clr-rejected-text);
+
+  &:empty {
+    display: none;
+  }
+
+  a {
+    color: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+
+.dashboard__add-actions {
+  margin-top: var(--space-6);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.dashboard__add-submit {
+  width: auto;
+  height: 2.5rem;
+  padding: 0 var(--space-5);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--clr-white);
+  text-box-trim: none;
+
+  &:hover {
+    transform: none;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: progress;
+  }
 }

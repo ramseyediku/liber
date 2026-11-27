@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <title>Liber Dashboard</title>
-    <script src="../shared/theme.js"></script>
+    <script src="../../dist/shared/theme.js"></script>
     <link rel="icon" href="../assets/favicon/favicon.ico" />
     <link
       rel="icon"
@@ -19,6 +19,7 @@
     <link
       rel="apple-touch-icon"
       href="../assets/favicon/apple-touch-icon.png" />
+    <link rel="stylesheet" href="../../vendor/driver.css" />
     <link rel="stylesheet" href="dashboard-full.css" />
   </head>
   <body>
@@ -73,57 +74,167 @@
           </svg>
           <p class="dashboard__label">Dashboard</p>
         </a>
-
-        <button
-          type="button"
-          class="dashboard__sidebar-profile"
-          id="sidebar-profile-trigger"
-          aria-haspopup="true"
-          aria-label="View profile">
-          <span
-            class="dashboard__avatar dashboard__avatar--sidebar"
-            id="user-avatar"
-            aria-hidden="true"></span>
-          <div class="dashboard__sidebar-profile-text">
-            <p class="dashboard__sidebar-profile-name" id="profile-name"></p>
-            <p
-              class="dashboard__sidebar-profile-profession"
-              id="profile-profession"></p>
-          </div>
-        </button>
+        <a
+          class="dashboard__link"
+          href="../settings/settings.html"
+          aria-label="Settings">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round">
+            <use href="../shared/icons.svg#icon-settings"></use>
+          </svg>
+          <p class="dashboard__label">Settings</p>
+        </a>
       </aside>
 
       <main class="dashboard__main">
         <header class="dashboard__header">
           <h1>My Applications</h1>
+          <div class="dashboard__corner">
+            <button
+              type="button"
+              class="dashboard__theme-toggle"
+              id="theme-toggle"
+              aria-label="Switch to dark mode">
+              <svg
+                class="theme-icon-sun"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round">
+                <use href="../shared/icons.svg#icon-sun"></use>
+              </svg>
+              <svg
+                class="theme-icon-moon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round">
+                <use href="../shared/icons.svg#icon-moon"></use>
+              </svg>
+            </button>
+
+            <a class="dashboard__login-btn hidden" id="login-link" href="../onboarding/login.html">Log in</a>
+
+            <button
+              type="button"
+              class="dashboard__avatar dashboard__avatar--account hidden"
+              id="account-trigger"
+              aria-haspopup="true"
+              aria-label="View profile"></button>
+          </div>
           <p class="dashboard__greeting" id="greeting">
             <span class="dashboard__greeting-label">Tracking my applications for</span>
-            <span class="dashboard__profession-pill">
+            <button
+              type="button"
+              class="dashboard__profession-pill"
+              id="profile-switcher"
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-label="Switch job profile">
               <span id="profession-label"></span>
-            </span>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true">
+                <use href="../shared/icons.svg#icon-chevron-down"></use>
+              </svg>
+            </button>
           </p>
-          <button
-            type="button"
-            class="dashboard__logs-trigger"
-            id="logs-trigger"
-            aria-haspopup="true"
-            aria-expanded="false"
-            aria-label="View scrape activity log">
-            Activity Log
-          </button>
         </header>
 
-        <div class="dashboard__table-wrap">
+        <div class="dashboard__toolbar" id="jobs-toolbar">
+          <div
+            class="dashboard__filters"
+            id="status-filters"
+            role="group"
+            aria-label="Filter by status"></div>
+          <div class="dashboard__toolbar-end">
+          <label class="dashboard__search">
+            <span class="visually-hidden">Search applications</span>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true">
+              <use href="../shared/icons.svg#icon-search"></use>
+            </svg>
+            <input
+              type="search"
+              id="jobs-search"
+              placeholder="Search company, title or notes"
+              autocomplete="off" />
+          </label>
+          <button type="button" class="dashboard__add-btn" id="add-job-btn">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              aria-hidden="true">
+              <use href="../shared/icons.svg#icon-plus"></use>
+            </svg>
+            Add
+          </button>
+          </div>
+        </div>
+        <p class="visually-hidden" id="filter-status" role="status"></p>
+
+        <div class="dashboard__table-wrap" id="jobs-table-wrap">
           <table class="dashboard__table" id="jobs-table">
             <thead>
               <tr>
                 <th>Company</th>
                 <th class="dashboard__col--title">Job Title</th>
-                <th class="dashboard__col--full">Location</th>
-                <th class="dashboard__col--full">Date Added</th>
-                <th class="dashboard__col--status">Status</th>
-                <th>Notes</th>
-                <th></th>
+                <th class="dashboard__col--full dashboard__col--location">Location</th>
+                <th class="dashboard__col--full" data-sort="date" aria-sort="descending">
+                  <button type="button" class="dashboard__sort">
+                    Date Added
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true">
+                      <use href="../shared/icons.svg#icon-chevron-down"></use>
+                    </svg>
+                  </button>
+                </th>
+                <th class="dashboard__col--status" data-sort="status">
+                  <button type="button" class="dashboard__sort">
+                    Status
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true">
+                      <use href="../shared/icons.svg#icon-chevron-down"></use>
+                    </svg>
+                  </button>
+                </th>
+                <th class="dashboard__col--notes">Notes</th>
+                <th><span class="visually-hidden">Actions</span></th>
               </tr>
             </thead>
             <tbody id="jobs-tbody">
@@ -170,35 +281,6 @@
         </nav>
 
       </main>
-
-      <aside class="dashboard__rail" aria-label="Quick actions">
-        <button
-          type="button"
-          class="dashboard__theme-toggle"
-          id="theme-toggle"
-          aria-label="Switch to dark mode">
-          <svg
-            class="theme-icon-sun"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round">
-            <use href="../shared/icons.svg#icon-sun"></use>
-          </svg>
-          <svg
-            class="theme-icon-moon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round">
-            <use href="../shared/icons.svg#icon-moon"></use>
-          </svg>
-        </button>
-      </aside>
     </div>
 
     <div class="dashboard__detail-overlay" id="detail-overlay" hidden></div>
@@ -317,6 +399,47 @@
       </div>
     </aside>
 
+    <dialog class="dashboard__add-dialog" id="add-job-dialog" aria-labelledby="add-job-title">
+      <form id="add-job-form" novalidate>
+        <h2 id="add-job-title">Add an application</h2>
+        <div class="dashboard__add-grid">
+          <label>
+            <span>Company</span>
+            <input type="text" name="company" maxlength="200" autocomplete="off" />
+          </label>
+          <label>
+            <span>Job title</span>
+            <input type="text" name="jobTitle" maxlength="200" autocomplete="off" />
+          </label>
+          <label>
+            <span>Location <small>(optional)</small></span>
+            <input type="text" name="location" maxlength="200" autocomplete="off" />
+          </label>
+          <label>
+            <span>Date applied</span>
+            <input type="date" name="dateAdded" />
+          </label>
+          <label>
+            <span>Status</span>
+            <select name="status"></select>
+          </label>
+          <label>
+            <span>Job link <small>(optional)</small></span>
+            <input type="url" name="url" maxlength="2000" placeholder="https://" autocomplete="off" />
+          </label>
+          <label class="dashboard__add-wide">
+            <span>Notes <small>(optional)</small></span>
+            <textarea name="notes" rows="3" placeholder="Interview dates, contacts, follow-ups…"></textarea>
+          </label>
+        </div>
+        <p class="dashboard__add-error" id="add-job-error" role="alert"></p>
+        <div class="dashboard__add-actions">
+          <button type="button" class="dashboard__detail-close-btn" id="add-job-cancel">Cancel</button>
+          <button type="submit" class="dashboard__add-submit" id="add-job-submit">Add application</button>
+        </div>
+      </form>
+    </dialog>
+
     <!-- Cloned per-row by dashboard-core.js for each delete button. -->
     <template id="trash-icon-template">
       <svg
@@ -369,6 +492,6 @@
     </template>
 
     <script src="../../vendor/browser-polyfill.js"></script>
-    <script type="module" src="dashboard-full.js"></script>
+    <script type="module" src="../../dist/dashboard/dashboard-full.js"></script>
   </body>
 </html>

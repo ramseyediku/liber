@@ -8,13 +8,13 @@
     "48": "src/assets/icons/icon48.png",
     "128": "src/assets/icons/icon128.png"
   },
-  "permissions": ["storage", "activeTab", "notifications", "alarms", "offscreen"],
+  "permissions": ["storage", "activeTab", "notifications"],
   "host_permissions": ["<all_urls>"],
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+    "extension_pages": "script-src 'self'; object-src 'self'"
   },
   "background": {
-    "service_worker": "src/background/background.js",
+    "service_worker": "dist/background/background.js",
     "type": "module"
   },
   "action": {
@@ -28,7 +28,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["vendor/browser-polyfill.js", "src/content/content.js"],
+      "js": ["vendor/browser-polyfill.js", "dist/content/content.js"],
       "run_at": "document_idle"
     }
   ],
