@@ -21,6 +21,7 @@ export const ACCOUNT_KEYS = new Set([
   "liber_local_profiles",
   "liber_synced_profiles",
   "liber_local_saves",
+  "liber_local_only",
   "liber_cloud_sync_enabled",
   "liber_paid_cache",
   "liber_restore_code",

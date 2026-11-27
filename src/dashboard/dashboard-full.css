@@ -808,19 +808,28 @@
   }
 }
 
-.dashboard__search {
-  position: relative;
-  display: block;
-  flex: 1 1 16rem;
-  max-width: 28rem;
+/* Search + Add, kept together at the end of the toolbar. */
+.dashboard__toolbar-end {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1 1 22rem;
+  max-width: 34rem;
   margin-inline-start: auto;
 
-  /* Once the chips need two rows, search takes its own full-width row. */
+  /* Once the chips need two rows, search and Add take their own full row. */
   @media (max-width: 1100px) {
     flex-basis: 100%;
     max-width: none;
     margin-inline-start: 0;
   }
+}
+
+.dashboard__search {
+  position: relative;
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
 
   svg {
     position: absolute;
@@ -1073,4 +1082,152 @@ th[aria-sort="ascending"] .dashboard__sort svg {
 
 .capture-log__site {
   margin-left: auto;
+}
+
+/* --- Add an application by hand ------------------------------------------ */
+
+.dashboard__add-btn {
+  flex: none;
+  width: auto;
+  height: 2.4rem;
+  padding: 0 var(--space-4);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  border-radius: var(--border-radius);
+  background: var(--clr-accent);
+  color: var(--clr-white);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-box-trim: none;
+
+  svg {
+    width: 1rem;
+    aspect-ratio: 1;
+  }
+
+  &:hover {
+    transform: none;
+    background: var(--clr-accent-hover);
+  }
+}
+
+.dashboard__add-dialog {
+  width: min(36rem, calc(100% - 2rem));
+  max-height: calc(100dvh - 2rem);
+  padding: var(--space-6);
+  border: 1px solid var(--clr-grey);
+  border-radius: var(--border-radius);
+  background: var(--clr-white);
+  color: var(--clr-dark);
+  box-shadow: var(--shadow-panel, var(--box-shadow));
+
+  &::backdrop {
+    background: rgba(15, 23, 42, 0.5);
+  }
+
+  h2 {
+    margin: 0 0 var(--space-5);
+    font-size: 1.4rem;
+  }
+}
+
+.dashboard__add-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+
+  @media (max-width: 560px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+
+    > span {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--clr-muted);
+    }
+
+    small {
+      font-weight: 500;
+    }
+  }
+
+  input,
+  select,
+  textarea {
+    width: 100%;
+    box-sizing: border-box;
+    height: 2.6rem;
+    padding: 0 var(--space-3);
+    border: none;
+    border-radius: var(--border-radius);
+    background: var(--clr-grey);
+    color: var(--clr-dark);
+    font: inherit;
+    font-size: 0.9rem;
+  }
+
+  input:hover {
+    scale: none;
+  }
+
+  textarea {
+    height: auto;
+    min-height: 5rem;
+    padding: var(--space-3);
+    line-height: 1.5;
+    resize: vertical;
+  }
+}
+
+.dashboard__add-wide {
+  grid-column: 1 / -1;
+}
+
+.dashboard__add-error {
+  margin: var(--space-4) 0 0;
+  font-size: 0.85rem;
+  color: var(--clr-rejected-text);
+
+  &:empty {
+    display: none;
+  }
+
+  a {
+    color: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+
+.dashboard__add-actions {
+  margin-top: var(--space-6);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.dashboard__add-submit {
+  width: auto;
+  height: 2.5rem;
+  padding: 0 var(--space-5);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--clr-white);
+  text-box-trim: none;
+
+  &:hover {
+    transform: none;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: progress;
+  }
 }

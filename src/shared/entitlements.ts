@@ -48,13 +48,16 @@ const RESTORE_CODE_KEY = "liber_restore_code";
 
 // Starts the one-time-unlock Checkout. The restore code comes back before
 // payment completes, so it's held locally and only shown once the account
-// is actually paid (see getRestoreCode).
+// is actually paid (see getRestoreCode). A code from an earlier, unfinished
+// checkout is sent back so the server reuses it: otherwise paying in an
+// older checkout tab would leave this device holding the wrong code.
 export async function startCheckout(): Promise<string> {
   await ensureSession();
+  const pending = await getRestoreCode();
   const { data, error } = await getSupabaseClient().functions.invoke<{
     checkoutUrl?: string;
     restoreCode?: string;
-  }>("create-checkout-session");
+  }>("create-checkout-session", { body: pending ? { restoreCode: pending } : {} });
   if (error) throw error;
   if (!data?.checkoutUrl) throw new Error("create-checkout-session returned no url");
   if (data.restoreCode) await accountStorage.set({ [RESTORE_CODE_KEY]: data.restoreCode });
@@ -66,7 +69,13 @@ export async function getRestoreCode(): Promise<string | null> {
   return result[RESTORE_CODE_KEY] || null;
 }
 
-// Re-unlocks this account from the code of an earlier purchase.
+// XXXX-XXXX-XXXX-XXXX for display; the server ignores the dashes.
+export function formatRestoreCode(code: string): string {
+  return code.replace(/[^A-Za-z0-9]/g, "").toUpperCase().match(/.{1,4}/g)?.join("-") ?? code;
+}
+
+// Re-unlocks this account from the code of an earlier purchase. The code is
+// kept, so Settings can show it again on this account.
 export async function redeemRestoreCode(code: string): Promise<boolean> {
   await ensureSession();
   const { data, error } = await getSupabaseClient().functions.invoke<{ status: string }>(
@@ -74,5 +83,10 @@ export async function redeemRestoreCode(code: string): Promise<boolean> {
     { body: { code } },
   );
   if (error) throw error;
-  return data?.status === "restored";
+  const restored = data?.status === "restored";
+  if (restored) {
+    const plain = code.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+    await accountStorage.set({ [RESTORE_CODE_KEY]: plain, [PAID_CACHE_KEY]: true });
+  }
+  return restored;
 }

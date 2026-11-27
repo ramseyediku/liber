@@ -9,16 +9,34 @@ import {
   getAllJobProfiles,
   getAllJobs,
   getProfile,
+  flushPendingUpdates,
+  importJobs,
   setActiveJobProfile,
   setProfile,
   STATUS_META,
 } from "../shared/storage.ts";
-import { ensureSession, getSupabaseClient, isPermanentUser } from "../shared/supabaseClient.ts";
+import {
+  ensureSession,
+  getSupabaseClient,
+  isPermanentUser,
+} from "../shared/supabaseClient.ts";
 import { isSyncEnabled, setSyncEnabled } from "../shared/sync.ts";
 import { turnOnSync } from "../shared/syncEnable.ts";
 import { requireSetup, welcomeUrl } from "../shared/requireSetup.ts";
-import { isPaid, startCheckout } from "../shared/entitlements.ts";
-import { isDevInstall, removeDemoJobs, seedDemoJobs } from "../shared/demoData.ts";
+import {
+  FREE_JOB_LIMIT,
+  formatRestoreCode,
+  getRestoreCode,
+  isPaid,
+  redeemRestoreCode,
+  startCheckout,
+} from "../shared/entitlements.ts";
+import { parseJobsCsv } from "../shared/csvImport.ts";
+import {
+  isDevInstall,
+  removeDemoJobs,
+  seedDemoJobs,
+} from "../shared/demoData.ts";
 import type { Job, JobProfile, Profile } from "../shared/types.ts";
 
 LiberTheme.initToggle(document.getElementById("theme-toggle"));
@@ -56,6 +74,12 @@ const exportDesc = el("export-desc");
 const exportSelect = el<HTMLSelectElement>("export-profile");
 const exportBtn = el<HTMLButtonElement>("export-btn");
 
+const importDesc = el("import-desc");
+const importSelect = el<HTMLSelectElement>("import-profile");
+const importFile = el<HTMLInputElement>("import-file");
+const importBtn = el<HTMLButtonElement>("import-btn");
+const importError = el("import-error");
+
 const planBadge = el("plan-badge");
 const planDesc = el("plan-desc");
 const planFreeNote = el("plan-free-note");
@@ -63,12 +87,12 @@ const planPremium = el("plan-premium");
 const planPremiumTag = el("plan-premium-tag");
 const planUpgrade = el<HTMLButtonElement>("plan-upgrade");
 const planError = el("plan-error");
-// Restore-code UI disabled for now:
-// const planCodeRow = el("plan-code-row");
-// const planCode = el("plan-code");
-// const restoreForm = el<HTMLFormElement>("restore-form");
-// const restoreInput = el<HTMLInputElement>("restore-code");
-// const restoreError = el("restore-error");
+const planCodeRow = el("plan-code-row");
+const planCode = el("plan-code");
+const planCodeCopy = el<HTMLButtonElement>("plan-code-copy");
+const restoreForm = el<HTMLFormElement>("restore-form");
+const restoreInput = el<HTMLInputElement>("restore-code");
+const restoreError = el("restore-error");
 
 const accountSignedOut = el("account-signed-out");
 const accountSignedIn = el("account-signed-in");
@@ -121,7 +145,9 @@ function initialOf(name: string): string {
 }
 
 function errorMessage(err: unknown): string {
-  return err instanceof Error && err.message ? err.message : "Something went wrong. Try again.";
+  return err instanceof Error && err.message
+    ? err.message
+    : "Something went wrong. Try again.";
 }
 
 // --- Sidebar (same persisted state as the dashboard's) -------------------
@@ -131,7 +157,9 @@ function initSidebarToggle(): void {
   const syncLabel = () =>
     toggle.setAttribute(
       "aria-label",
-      dashboardEl.classList.contains("is-sidebar-collapsed") ? "Expand sidebar" : "Collapse sidebar",
+      dashboardEl.classList.contains("is-sidebar-collapsed")
+        ? "Expand sidebar"
+        : "Collapse sidebar",
     );
 
   let collapsed = false;
@@ -144,7 +172,9 @@ function initSidebarToggle(): void {
   dashboardEl.classList.toggle("is-sidebar-collapsed", collapsed);
   syncLabel();
   requestAnimationFrame(() =>
-    requestAnimationFrame(() => dashboardEl.classList.remove("dashboard--no-transition")),
+    requestAnimationFrame(() =>
+      dashboardEl.classList.remove("dashboard--no-transition"),
+    ),
   );
 
   toggle.addEventListener("click", () => {
@@ -217,7 +247,7 @@ function renderJobProfiles(): void {
       const useBtn = document.createElement("button");
       useBtn.type = "button";
       useBtn.className = "settings__btn settings__btn--ghost";
-      useBtn.textContent = "Use for new saves";
+      useBtn.textContent = "Switch";
       useBtn.addEventListener("click", async () => {
         await setActiveJobProfile(p);
         activeProfileId = p.id;
@@ -234,7 +264,9 @@ function renderExportOptions(): void {
   const previous = exportSelect.value || ALL_PROFILES;
   exportSelect.replaceChildren(new Option("All job profiles", ALL_PROFILES));
   for (const p of jobProfiles) exportSelect.add(new Option(p.name, p.id));
-  exportSelect.value = jobProfiles.some((p) => p.id === previous) ? previous : ALL_PROFILES;
+  exportSelect.value = jobProfiles.some((p) => p.id === previous)
+    ? previous
+    : ALL_PROFILES;
 }
 
 async function loadJobProfiles(): Promise<void> {
@@ -242,6 +274,7 @@ async function loadJobProfiles(): Promise<void> {
   activeProfileId = await getActiveJobProfileId();
   renderJobProfiles();
   renderExportOptions();
+  renderImportOptions();
 }
 
 profileForm.addEventListener("submit", async (event) => {
@@ -252,7 +285,9 @@ profileForm.addEventListener("submit", async (event) => {
     setError(profileError, "Enter a name for the job profile");
     return;
   }
-  if (jobProfiles.some((p) => p.name.trim().toLowerCase() === name.toLowerCase())) {
+  if (
+    jobProfiles.some((p) => p.name.trim().toLowerCase() === name.toLowerCase())
+  ) {
     setError(profileError, "You already have a job profile with that name");
     return;
   }
@@ -284,7 +319,8 @@ async function renderSyncRow(permanent: boolean): Promise<void> {
   syncLoginLink.classList.toggle("hidden", permanent);
 
   if (!permanent) {
-    syncDesc.textContent = "Off · log in to back up your applications and see them on any device.";
+    syncDesc.textContent =
+      "Off · log in to back up your applications and see them on any device.";
     return;
   }
   const enabled = await isSyncEnabled();
@@ -314,7 +350,16 @@ syncSwitch.addEventListener("click", async () => {
 
 // --- CSV export -------------------------------------------------------------
 
-const CSV_COLUMNS = ["Job profile", "Company", "Job title", "Location", "Status", "Date applied", "URL", "Notes"];
+const CSV_COLUMNS = [
+  "Job profile",
+  "Company",
+  "Job title",
+  "Location",
+  "Status",
+  "Date applied",
+  "URL",
+  "Notes",
+];
 
 // Job fields are scraped from arbitrary pages and notes are free text, so a
 // cell starting with = + - @ would run as a formula when opened in Excel or
@@ -335,12 +380,16 @@ function buildCsv(jobs: Job[], profileNames: Map<string, string>): string {
     job.url,
     job.notes,
   ]);
-  return [CSV_COLUMNS, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
+  return [CSV_COLUMNS, ...rows]
+    .map((row) => row.map(csvCell).join(","))
+    .join("\r\n");
 }
 
 function download(filename: string, content: string): void {
   // BOM so Excel reads the file as UTF-8.
-  const url = URL.createObjectURL(new Blob(["﻿", content], { type: "text/csv;charset=utf-8" }));
+  const url = URL.createObjectURL(
+    new Blob(["﻿", content], { type: "text/csv;charset=utf-8" }),
+  );
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
@@ -351,12 +400,23 @@ function download(filename: string, content: string): void {
 }
 
 function slug(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "profile";
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "profile"
+  );
 }
 
 async function exportCsv(profileId: string): Promise<void> {
-  const [jobs, profiles] = await Promise.all([getAllJobs(), getAllJobProfiles()]);
-  const selected = profileId === ALL_PROFILES ? jobs : jobs.filter((j) => j.profileId === profileId);
+  const [jobs, profiles] = await Promise.all([
+    getAllJobs(),
+    getAllJobProfiles(),
+  ]);
+  const selected =
+    profileId === ALL_PROFILES
+      ? jobs
+      : jobs.filter((j) => j.profileId === profileId);
   if (selected.length === 0) {
     showToast("No applications to export");
     return;
@@ -377,6 +437,91 @@ async function renderExportSummary(): Promise<void> {
 }
 
 exportBtn.addEventListener("click", () => exportCsv(exportSelect.value));
+
+// --- CSV import -------------------------------------------------------------
+// Reads Liber's own export and most job-tracking spreadsheets (csvImport.ts).
+// The free limit never refuses an import — imported rows count towards the
+// free saves, so it's the next save after going over that's stopped
+// (storage.ts, importJobs).
+
+const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
+
+function renderImportOptions(): void {
+  const previous = importSelect.value || activeProfileId;
+  importSelect.replaceChildren();
+  for (const p of jobProfiles) importSelect.add(new Option(p.name, p.id));
+  importSelect.value = jobProfiles.some((p) => p.id === previous)
+    ? previous
+    : activeProfileId;
+  // Nothing to choose between with a single profile.
+  importSelect.classList.toggle("hidden", jobProfiles.length < 2);
+}
+
+async function renderImportDesc(): Promise<void> {
+  const base =
+    "Add applications from a CSV file, such as a Liber export or your own spreadsheet with a Company or Job title column.";
+  importDesc.textContent = (await isPaid())
+    ? base
+    : `${base} Imported applications count towards your ${FREE_JOB_LIMIT} free saves.`;
+}
+
+function plural(count: number, word: string): string {
+  return `${count} ${word}${count === 1 ? "" : "s"}`;
+}
+
+async function importCsv(file: File): Promise<void> {
+  setError(importError, null);
+  if (file.size > MAX_IMPORT_BYTES) {
+    setError(importError, "That file is too large. Import a CSV under 5 MB.");
+    return;
+  }
+  const parsed = parseJobsCsv(
+    await file.text(),
+    new Date().toLocaleDateString("sv"),
+  );
+  if (parsed.missingColumns) {
+    setError(
+      importError,
+      "Couldn't find a Company or Job title column in that file.",
+    );
+    return;
+  }
+  if (!parsed.jobs.length) {
+    setError(importError, "That file has no applications to import.");
+    return;
+  }
+
+  const { imported, duplicates } = await importJobs(
+    parsed.jobs,
+    importSelect.value || activeProfileId,
+  );
+  void flushPendingUpdates().catch(() => {}); // uploads them now if Cloud Sync is on
+  await renderExportSummary();
+
+  const extras = [
+    duplicates ? `${plural(duplicates, "duplicate")} skipped` : "",
+    parsed.skipped ? `${plural(parsed.skipped, "empty row")} skipped` : "",
+  ].filter(Boolean);
+  const summary = imported
+    ? `Imported ${plural(imported, "application")}`
+    : "No new applications to import";
+  showToast(extras.length ? `${summary} (${extras.join(", ")})` : summary);
+}
+
+importBtn.addEventListener("click", () => importFile.click());
+importFile.addEventListener("change", async () => {
+  const file = importFile.files?.[0];
+  importFile.value = ""; // picking the same file again still fires change
+  if (!file) return;
+  importBtn.disabled = true;
+  try {
+    await importCsv(file);
+  } catch (err) {
+    setError(importError, errorMessage(err));
+  } finally {
+    importBtn.disabled = false;
+  }
+});
 
 // --- Sign-in details --------------------------------------------------------
 
@@ -406,7 +551,9 @@ emailForm.addEventListener("submit", async (event) => {
 
   emailSave.disabled = true;
   try {
-    const { error } = await getSupabaseClient().auth.updateUser({ email: emailInput.value.trim() });
+    const { error } = await getSupabaseClient().auth.updateUser({
+      email: emailInput.value.trim(),
+    });
     if (error) {
       setError(emailError, error.message);
       return;
@@ -425,7 +572,9 @@ passwordForm.addEventListener("submit", async (event) => {
 
   passwordSave.disabled = true;
   try {
-    const { error } = await getSupabaseClient().auth.updateUser({ password: passwordInput.value });
+    const { error } = await getSupabaseClient().auth.updateUser({
+      password: passwordInput.value,
+    });
     if (error) {
       setError(passwordError, error.message);
       return;
@@ -502,7 +651,12 @@ async function init(): Promise<void> {
     syncEmailForm();
   }
 
-  await Promise.all([loadJobProfiles(), renderSyncRow(permanent), renderExportSummary()]);
+  await Promise.all([
+    loadJobProfiles(),
+    renderSyncRow(permanent),
+    renderExportSummary(),
+    renderImportDesc(),
+  ]);
 }
 
 // --- Plan -------------------------------------------------------------------
@@ -517,14 +671,25 @@ async function renderPlan(): Promise<void> {
   planPremium.classList.toggle("settings__plan--current", paid);
   planPremiumTag.classList.toggle("hidden", !paid);
   planUpgrade.classList.toggle("hidden", paid);
-  // Restore-code UI disabled for now:
-  // restoreForm.classList.toggle("hidden", paid);
-  // setError(restoreError, null);
-  //
-  // const code = paid ? await getRestoreCode() : null;
-  // planCodeRow.classList.toggle("hidden", !code);
-  // if (code) planCode.textContent = code;
+  restoreForm.classList.toggle("hidden", paid);
+  if (paid) setError(restoreError, null);
+
+  // Shown once paid: the code from this account's checkout (or the one it was
+  // restored with). Paid on another device → nothing to show here.
+  const code = paid ? await getRestoreCode() : null;
+  planCodeRow.classList.toggle("hidden", !code);
+  if (code) planCode.textContent = formatRestoreCode(code);
 }
+
+planCodeCopy.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(planCode.textContent ?? "");
+    showToast("Restore code copied");
+  } catch {
+    // Clipboard blocked: select it so it can still be copied by hand.
+    getSelection()?.selectAllChildren(planCode);
+  }
+});
 
 planUpgrade.addEventListener("click", async () => {
   setError(planError, null);
@@ -539,27 +704,31 @@ planUpgrade.addEventListener("click", async () => {
   }
 });
 
-// Restore-code UI disabled for now:
-// restoreForm.addEventListener("submit", async (event) => {
-//   event.preventDefault();
-//   setError(restoreError, null);
-//   const code = restoreInput.value.trim();
-//   if (!code) {
-//     setError(restoreError, "Enter your restore code");
-//     return;
-//   }
-//   try {
-//     if (await redeemRestoreCode(code)) {
-//       restoreInput.value = "";
-//       await renderPlan();
-//       showToast("Premium restored");
-//     } else {
-//       setError(restoreError, "That code wasn't recognised");
-//     }
-//   } catch (err) {
-//     setError(restoreError, errorMessage(err));
-//   }
-// });
+restoreForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  setError(restoreError, null);
+  const code = restoreInput.value.trim();
+  if (!code) {
+    setError(restoreError, "Enter your restore code");
+    return;
+  }
+  const restoreBtn = el<HTMLButtonElement>("restore-btn");
+  restoreBtn.disabled = true;
+  try {
+    if (await redeemRestoreCode(code)) {
+      restoreInput.value = "";
+      await renderPlan();
+      await renderImportDesc();
+      showToast("Premium restored");
+    } else {
+      setError(restoreError, "That code wasn't recognised");
+    }
+  } catch {
+    setError(restoreError, "Couldn't check the code. Try again.");
+  } finally {
+    restoreBtn.disabled = false;
+  }
+});
 
 // Checkout happens in another tab — re-check when the user comes back.
 document.addEventListener("visibilitychange", () => {
@@ -580,8 +749,16 @@ if (isDevInstall()) {
     logSwitch.setAttribute("aria-checked", String(on));
     logSwitch.classList.toggle("dashboard__switch--on", on);
   };
-  (browser.storage.local.get(LOG_BUTTON_FLAG) as Promise<Record<string, unknown>>).then((r) =>
-    paintLogSwitch(typeof r[LOG_BUTTON_FLAG] === "boolean" ? (r[LOG_BUTTON_FLAG] as boolean) : true),
+  (
+    browser.storage.local.get(LOG_BUTTON_FLAG) as Promise<
+      Record<string, unknown>
+    >
+  ).then((r) =>
+    paintLogSwitch(
+      typeof r[LOG_BUTTON_FLAG] === "boolean"
+        ? (r[LOG_BUTTON_FLAG] as boolean)
+        : true,
+    ),
   );
   logSwitch.addEventListener("click", async () => {
     const next = logSwitch.getAttribute("aria-checked") !== "true";
@@ -608,7 +785,9 @@ if (isDevInstall()) {
 
 // --- Section tabs -----------------------------------------------------------
 
-const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>(".settings__tab"));
+const tabs = Array.from(
+  document.querySelectorAll<HTMLButtonElement>(".settings__tab"),
+);
 
 function selectTab(tab: HTMLButtonElement): void {
   for (const t of tabs) {
@@ -631,7 +810,8 @@ for (const tab of tabs) {
     const i = visible.indexOf(tab);
     let next = -1;
     if (event.key === "ArrowRight") next = (i + 1) % visible.length;
-    else if (event.key === "ArrowLeft") next = (i - 1 + visible.length) % visible.length;
+    else if (event.key === "ArrowLeft")
+      next = (i - 1 + visible.length) % visible.length;
     if (next < 0) return;
     event.preventDefault();
     visible[next]!.focus();
@@ -640,7 +820,9 @@ for (const tab of tabs) {
 }
 
 const hashTab = tabs.find(
-  (t) => t.dataset.panel === location.hash.slice(1) && !t.classList.contains("hidden"),
+  (t) =>
+    t.dataset.panel === location.hash.slice(1) &&
+    !t.classList.contains("hidden"),
 );
 if (hashTab) selectTab(hashTab);
 

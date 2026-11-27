@@ -12,7 +12,7 @@
 import Stripe from "npm:stripe@^22";
 import { getCallerUser } from "../_shared/client.ts";
 import { handleCors, json } from "../_shared/cors.ts";
-import { generateRestoreCode, sha256Hex } from "../_shared/hash.ts";
+import { generateRestoreCode, isRestoreCode, sha256Hex } from "../_shared/hash.ts";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_API_KEY") as string);
 
@@ -23,7 +23,10 @@ Deno.serve(async (req: Request) => {
   const caller = await getCallerUser(req);
   if (!caller) return json({ error: "unauthorized" }, 401);
 
-  const restoreCode = generateRestoreCode();
+  // The client sends back the code from an earlier checkout it never finished,
+  // so every checkout tab this account opens carries the same code.
+  const body = await req.json().catch(() => ({}));
+  const restoreCode = isRestoreCode(body?.restoreCode) ? body.restoreCode : generateRestoreCode();
   const restoreCodeHash = await sha256Hex(restoreCode);
 
   const session = await stripe.checkout.sessions.create({

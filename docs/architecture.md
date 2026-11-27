@@ -873,7 +873,31 @@ in the queue and is applied the next time sync is on.
 
 **Turning sync on** uploads the queued profiles and jobs, then adopts the
 account's own profile if this device's isn't among them
-(`adoptAccountJobProfile`). Jobs the free cap refuses stay on the device only.
+(`adoptAccountJobProfile`). Jobs the free cap refuses stay on the device only:
+their ids go in `liber_local_only`, which keeps them in the list when sync is
+on (before this, the next refresh rebuilt the cache from the server and they
+silently vanished), keeps their edits queued rather than sent to `update-job`
+for a row that doesn't exist, and makes their delete local-only. Once the
+account is paid, the next flush puts them back in the upload queue.
+
+**Adding a job by hand** (the dashboard's Add button) goes through `addJob`
+like a capture, so dedup and the free limit apply the same way. It can also set
+status, date and notes: the date goes to `record-save` as `dateApplied`, and
+status/notes follow as an ordinary edit because `record-save` only takes the
+captured fields.
+
+**Importing a CSV** (Settings → Account & Data; parser in
+`src/shared/csvImport.ts`) reads Liber's own export and the usual spreadsheet
+headings, into a chosen profile. The user's rule: the free limit never refuses
+an import, but every imported job counts towards the 10 free saves, so the next
+save or add after an import that went over is the one that's stopped. Imported
+jobs are always written locally and queued (`importJobs`), whatever the sync
+setting, and go up with the next flush — so with sync on, the server's own
+limit still decides what reaches Supabase, and anything over it stays on the
+device (above). Letting imports past the server's limit too would need a
+database change (see the roadmap). Rows that duplicate a job already saved, or
+another row in the file, are skipped; a/b/yyyy dates are read day-first unless
+only month-first makes sense.
 
 **Local data is per account** (`src/shared/accountStore.ts`). Every per-account
 key (jobs, job profiles, queued uploads, sync setting, paid cache) is stored as
@@ -953,10 +977,20 @@ displays it): no limits. The limits are enforced by DB triggers
 `extract-job-fields` (`consume_quota('ai', 10)`), and mirrored in the client
 (`FREE_JOB_LIMIT`, `FREE_EXTRA_JOB_PROFILES`) because with sync off nothing
 reaches the server to enforce them. `isPaid()` caches its last answer so a paid
-user offline is not treated as free. **Parked:** the restore-code UI (entering or
-showing a code to recover Premium after clearing browser data) is commented out in
-`settings.html`/`settings.ts`; `startCheckout` still stores the code it is given
-and the `redeem-restore-code` function is deployed.
+user offline is not treated as free.
+
+**Guests can pay; the restore code is how they keep it** (the user's call, over
+requiring an account first). Premium is tied to the auth user id, and a guest who
+logs out or clears browser data gets a new id, so the restore code is the only way
+back. `create-checkout-session` makes the code before payment and puts its hash in
+the session metadata; the webhook records it with the purchase. Settings → Plan
+shows the code (with Copy) once paid, and a "restore code" form while free. A
+checkout that was opened but never finished sends its code back on the next one,
+so every checkout tab carries the same code and paying in an older tab can't
+leave this device holding the wrong one. A successful restore stores the code too.
+After checkout Stripe returns to static pages in `site/`, published to GitHub
+Pages by `.github/workflows/pages.yml` (`thanks.html`, `cancelled.html`), since
+Stripe needs https URLs and an extension page can't be one.
 
 ## Backend: functions, database facts, and how it is operated
 
@@ -986,4 +1020,7 @@ end to end, sign in a throwaway anonymous user (`POST /auth/v1/signup`), call it
 then call `delete-account` to clean up. Secrets: `LIBER_LLM_API` is set; the
 Stripe ones (`STRIPE_API_KEY`, `STRIPE_PRICE_ID`, `STRIPE_SUCCESS_URL`,
 `STRIPE_CANCEL_URL`, `STRIPE_WEBHOOK_SIGNING_SECRET`) are not yet, so checkout and
-the webhook return 500 until they are.
+the webhook return 500 until they are. The return URLs are
+`https://ramseyediku.github.io/liber/thanks.html` and `…/cancelled.html`.
+`stripe-webhook` must be deployed with `--no-verify-jwt` and subscribed to
+`checkout.session.completed`, `charge.refunded` and `charge.dispute.created`.

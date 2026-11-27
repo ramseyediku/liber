@@ -9,6 +9,7 @@ import { ensureSession, getSupabaseClient } from "./supabaseClient.ts";
 import { accountStorage, clearAccountData, currentUserId } from "./accountStore.ts";
 import { FREE_EXTRA_JOB_PROFILES, FREE_JOB_LIMIT, isPaid } from "./entitlements.ts";
 import { isSyncEnabled } from "./sync.ts";
+import type { ImportedJob } from "./csvImport.ts";
 import type { Job, JobProfile, JobStatus, Profile, SaveJobResult } from "./types.ts";
 
 export const STATUS = {
@@ -37,6 +38,7 @@ const PENDING_DELETES_KEY = "liber_pending_deletes"; // job id -> when it was de
 const LOCAL_PROFILES_KEY = "liber_local_profiles"; // extra profiles made on this device
 const SYNCED_PROFILES_KEY = "liber_synced_profiles"; // profile ids known to exist remotely
 const LOCAL_SAVES_KEY = "liber_local_saves"; // lifetime saves made while sync was off
+const LOCAL_ONLY_KEY = "liber_local_only"; // job ids the server refused (free limit)
 
 function rowToJob(row: any): Job {
   return {
@@ -209,10 +211,24 @@ export async function adoptAccountJobProfile(): Promise<void> {
   if (error || !data?.length) return;
   const active = await getOrCreateDefaultProfile();
   if (data.some((row: any) => row.id === active.id)) return;
-  await setActiveJobProfile({ id: data[0].id, name: data[0].name });
+  // Not setActiveJobProfile: this device's profile is being replaced by the
+  // account's, not switched away from, so it isn't kept.
+  await accountStorage.set({ [DEFAULT_PROFILE_KEY]: { id: data[0].id, name: data[0].name } });
 }
 
+// Switching away from the default profile ("General", or the first-run role)
+// must keep it: it exists only as the active-profile record, not in the local
+// profile list, so overwriting that record would drop it from every list —
+// and hide its jobs.
 export async function setActiveJobProfile(profile: { id: string; name: string }): Promise<void> {
+  const previous = await getOrCreateDefaultProfile();
+  if (previous.id !== profile.id) {
+    const local = await readLocalProfiles();
+    if (!local.some((p) => p.id === previous.id)) {
+      local.unshift({ id: previous.id, name: previous.name, deleted: false, updatedAt: "" });
+      await accountStorage.set({ [LOCAL_PROFILES_KEY]: local });
+    }
+  }
   await accountStorage.set({ [DEFAULT_PROFILE_KEY]: { id: profile.id, name: profile.name } });
 }
 
@@ -277,9 +293,10 @@ export async function getAllJobs(options: { refresh?: boolean } = {}): Promise<J
         // Local changes not pushed yet are newer than the remote rows: edits
         // are laid on top, jobs not uploaded yet are kept, and jobs deleted
         // here but not yet deleted remotely stay hidden.
-        const [pending, creates, deletes, cache] = await Promise.all([
+        const [pending, creates, localOnly, deletes, cache] = await Promise.all([
           readPending(),
           readIdList(PENDING_CREATES_KEY),
+          readIdList(LOCAL_ONLY_KEY),
           readDeletes(),
           readJobsCache(),
         ]);
@@ -289,7 +306,10 @@ export async function getAllJobs(options: { refresh?: boolean } = {}): Promise<J
           .map((j: Job) => (pending[j.id] ? { ...j, ...pending[j.id] } : j));
         const remoteIds = new Set(remote.map((j: Job) => j.id));
         const notUploaded = cache.filter(
-          (j) => creates.includes(j.id) && !remoteIds.has(j.id) && !j.deleted,
+          (j) =>
+            (creates.includes(j.id) || localOnly.includes(j.id)) &&
+            !remoteIds.has(j.id) &&
+            !j.deleted,
         );
         const jobs = [...notUploaded, ...remote];
         // Rows inside their undo window stay in the cache (hidden) so Undo works.
@@ -303,7 +323,11 @@ export async function getAllJobs(options: { refresh?: boolean } = {}): Promise<J
   return (await readJobsCache()).filter((j) => !j.deleted);
 }
 
-type NewJob = Partial<Pick<Job, "company" | "jobTitle" | "url" | "location">>;
+// Captures fill company/title/url/location; a job added by hand on the
+// dashboard can also set its status, date and notes.
+type NewJob = Partial<
+  Pick<Job, "company" | "jobTitle" | "url" | "location" | "status" | "dateAdded" | "notes">
+>;
 
 // Cloud Sync off: the job exists only on this device. The free limit (10
 // saves, the same lifetime count the server keeps) and duplicate check that
@@ -334,10 +358,10 @@ async function addJobLocally(partialJob: NewJob): Promise<SaveJobResult> {
     company: fields.company,
     jobTitle: fields.jobTitle,
     url: partialJob.url || "",
-    dateAdded: todayISO(),
-    status: "applied",
+    dateAdded: partialJob.dateAdded || todayISO(),
+    status: partialJob.status || "applied",
     location: fields.location,
-    notes: "",
+    notes: partialJob.notes || "",
     deleted: false,
     updatedAt: new Date().toISOString(),
   };
@@ -369,6 +393,7 @@ export async function addJob(partialJob: NewJob): Promise<SaveJobResult> {
       company: partialJob.company || "Unknown company",
       location: partialJob.location || "",
       url: partialJob.url || "",
+      dateApplied: partialJob.dateAdded,
     },
   });
   if (error) throw error;
@@ -380,10 +405,80 @@ export async function addJob(partialJob: NewJob): Promise<SaveJobResult> {
     cached.unshift(job);
     await cacheJobs(cached);
     await markProfileSynced(profile.id); // record-save upserts the profile too
+    // record-save only takes the captured fields; a status or notes set by
+    // hand go up as an ordinary edit.
+    const edits: JobEdits = {};
+    if (partialJob.status && partialJob.status !== job.status) edits.status = partialJob.status;
+    if (partialJob.notes) edits.notes = partialJob.notes;
+    if (Object.keys(edits).length) return { status: "saved", job: (await editJobLocally(job.id, edits)) ?? job };
     return { status: "saved", job };
   }
 
   return { status: data.status === "limit" ? "limit" : "duplicate" };
+}
+
+// --- CSV import ---------------------------------------------------------------
+// Imported jobs are written to this device like a sync-off save, whether or
+// not sync is on, and go up with the next flush. The free limit never refuses
+// an import: every imported job counts towards the 10 free saves, so the next
+// save or add after an import that went over is the one that's stopped.
+// (With sync on, the server's own limit still applies when they're uploaded —
+// whatever it refuses stays on this device; see LOCAL_ONLY_KEY.)
+export async function importJobs(
+  jobs: ImportedJob[],
+  profileId: string,
+): Promise<{ imported: number; duplicates: number }> {
+  await ensureSession();
+  const cached = await readJobsCache();
+  const seen = new Set(cached.filter((j) => !j.deleted).map(dedupKey));
+  const pending = await readPending();
+  const now = new Date().toISOString();
+  const added: Job[] = [];
+  let duplicates = 0;
+
+  for (const row of jobs) {
+    const job: Job = {
+      id: crypto.randomUUID(),
+      profileId,
+      company: row.company || "Unknown company",
+      jobTitle: row.jobTitle || "Unknown title",
+      url: row.url,
+      dateAdded: row.dateAdded,
+      status: row.status,
+      location: row.location,
+      notes: row.notes,
+      deleted: false,
+      updatedAt: now,
+    };
+    const key = dedupKey(job);
+    if (seen.has(key)) {
+      duplicates++;
+      continue;
+    }
+    seen.add(key);
+    added.push(job);
+    // record-save only uploads the captured fields; these follow as an edit.
+    const edits: JobEdits = {};
+    if (job.status !== "applied") edits.status = job.status;
+    if (job.notes) edits.notes = job.notes;
+    if (Object.keys(edits).length) pending[job.id] = edits;
+  }
+  if (!added.length) return { imported: 0, duplicates };
+
+  // Newest first, like the rest of the cache.
+  added.sort((a, b) => b.dateAdded.localeCompare(a.dateAdded));
+  await cacheJobs([...added, ...cached]);
+  await writePending(pending);
+  await accountStorage.set({
+    [PENDING_CREATES_KEY]: [...(await readIdList(PENDING_CREATES_KEY)), ...added.map((j) => j.id)],
+  });
+  if (!(await isPaid())) {
+    const used = ((await accountStorage.get(LOCAL_SAVES_KEY)) as Record<string, number>)[
+      LOCAL_SAVES_KEY
+    ] || 0;
+    await accountStorage.set({ [LOCAL_SAVES_KEY]: used + added.length });
+  }
+  return { imported: added.length, duplicates };
 }
 
 async function markProfileSynced(profileId: string): Promise<void> {
@@ -626,6 +721,9 @@ async function uploadPendingCreates(): Promise<void> {
     }
     // saved, duplicate (the account already has it) and limit (free cap hit —
     // it stays on this device only) are all final for this job.
+    if (data?.status === "limit") {
+      await accountStorage.set({ [LOCAL_ONLY_KEY]: [...(await readIdList(LOCAL_ONLY_KEY)), id] });
+    }
     await removeFromIdList(PENDING_CREATES_KEY, [id]);
   }
 }
@@ -647,9 +745,13 @@ async function doFlush(force: boolean): Promise<void> {
 
     // Never uploaded (or a demo row) → nothing exists remotely to delete.
     const creates = await readIdList(PENDING_CREATES_KEY);
-    const localOnly = due.filter((id) => creates.includes(id) || id.startsWith(DEMO_ID_PREFIX));
+    const refused = await readIdList(LOCAL_ONLY_KEY);
+    const localOnly = due.filter(
+      (id) => creates.includes(id) || refused.includes(id) || id.startsWith(DEMO_ID_PREFIX),
+    );
     serverDeletes = due.filter((id) => !localOnly.includes(id));
     await removeFromIdList(PENDING_CREATES_KEY, localOnly);
+    await removeFromIdList(LOCAL_ONLY_KEY, localOnly);
     localOnly.forEach((id) => delete deletes[id]);
     await accountStorage.set({ [PENDING_DELETES_KEY]: deletes });
   }
@@ -659,6 +761,14 @@ async function doFlush(force: boolean): Promise<void> {
   const supabase = getSupabaseClient();
 
   await uploadUnsyncedProfiles();
+  // Jobs the server refused at the free limit get another go once paid.
+  const refused = await readIdList(LOCAL_ONLY_KEY);
+  if (refused.length && (await isPaid())) {
+    await accountStorage.set({
+      [PENDING_CREATES_KEY]: [...(await readIdList(PENDING_CREATES_KEY)), ...refused],
+      [LOCAL_ONLY_KEY]: [],
+    });
+  }
   await uploadPendingCreates();
 
   // Real deletes, straight from the table (RLS: own rows only).
@@ -673,8 +783,14 @@ async function doFlush(force: boolean): Promise<void> {
     await accountStorage.set({ [PENDING_DELETES_KEY]: remaining });
   }
 
+  // Edits to a job that isn't in Supabase stay queued until it is.
+  const notUploaded = new Set([
+    ...(await readIdList(PENDING_CREATES_KEY)),
+    ...(await readIdList(LOCAL_ONLY_KEY)),
+  ]);
   const snapshot = await readPending();
   for (const id of Object.keys(snapshot)) {
+    if (notUploaded.has(id)) continue;
     const sent = snapshot[id]!;
     const { error } = await supabase.functions.invoke("update-job", {
       body: { jobId: id, updates: sent },

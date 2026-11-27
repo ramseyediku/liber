@@ -32,7 +32,11 @@ Decisions are recorded where they belong (`docs/architecture.md`,
 - Jobs saved under the old always-upload behaviour are still in the database for
   users who never turned sync on; they are only removed when sync is on and they
   are deleted.
-- The restore-code UI is parked (commented out), not removed.
+- CSV imports past the free limit are allowed on the device, but with Cloud Sync
+  on the server's `enforce_job_limit` still refuses anything over 10, so those
+  jobs stay device-only (not lost, not synced) until the account is paid. To sync
+  them too, the database would need to let imported rows through the quota (for
+  example an `imported` flag the trigger counts but never refuses).
 - Capture, background and dashboard code have no unit tests; only the pure helpers
   (`structure.ts`, `fieldMerge.ts`, `jobPostingLd.ts`) do. The storage logic was
   exercised with an ad-hoc mocked harness that is not in the repo.

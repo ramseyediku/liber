@@ -2,6 +2,7 @@
 // job as a table row; the popup (cardMode) renders a capped card list —
 // only page chrome/CSS and this render mode differ.
 import {
+  addJob,
   getAllJobs,
   updateJob,
   deleteJob,
@@ -14,7 +15,7 @@ import {
   createJobProfile,
   STATUS_META,
 } from "../shared/storage.ts";
-import { isPaid } from "../shared/entitlements.ts";
+import { FREE_JOB_LIMIT, isPaid } from "../shared/entitlements.ts";
 import {
   ensureSession,
   getSupabaseClient,
@@ -611,10 +612,17 @@ async function openProfileSwitcher(anchor: HTMLElement): Promise<void> {
   input.maxLength = 40;
   input.placeholder = "Profile name";
   input.setAttribute("aria-label", "New job profile name");
+  const submit = document.createElement("button");
+  submit.type = "submit";
+  submit.className = "dashboard__profile-submit";
+  submit.textContent = "Add";
+  const row = document.createElement("div");
+  row.className = "dashboard__profile-form-row";
+  row.append(input, submit);
   const error = document.createElement("p");
   error.className = "dashboard__profile-error";
   error.setAttribute("role", "alert");
-  form.append(input, error);
+  form.append(row, error);
   menu.appendChild(form);
 
   add.addEventListener("click", () => {
@@ -631,19 +639,19 @@ async function openProfileSwitcher(anchor: HTMLElement): Promise<void> {
       error.textContent = "You already have a profile with that name";
       return;
     }
-    input.disabled = true;
+    input.disabled = submit.disabled = true;
     try {
       const result = await createJobProfile(name);
       if (result.status === "limit") {
         error.textContent = "Unlock Liber for unlimited job profiles";
-        input.disabled = false;
+        input.disabled = submit.disabled = false;
         return;
       }
       closeActivePopover();
       await switchJobProfile(result.profile);
     } catch {
       error.textContent = "Couldn't add the profile. Try again.";
-      input.disabled = false;
+      input.disabled = submit.disabled = false;
     }
   });
 
@@ -1248,6 +1256,101 @@ async function renderJobs(refresh = false): Promise<void> {
   syncDetailPanel(view);
 }
 
+// --- Add an application by hand (full view only) ----------------------------
+// Goes through addJob like a capture, so the duplicate check and the free
+// limit apply the same way.
+
+function todayLocal(): string {
+  return new Date().toLocaleDateString("sv"); // YYYY-MM-DD in local time
+}
+
+function initAddJob(): void {
+  const openBtn = document.getElementById("add-job-btn");
+  const dialog = document.getElementById("add-job-dialog") as HTMLDialogElement | null;
+  const form = document.getElementById("add-job-form") as HTMLFormElement | null;
+  const error = document.getElementById("add-job-error");
+  const submit = document.getElementById("add-job-submit") as HTMLButtonElement | null;
+  if (!openBtn || !dialog || !form || !error || !submit) return;
+
+  const field = <T extends HTMLElement>(name: string) => form.elements.namedItem(name) as T;
+  const statusSelect = field<HTMLSelectElement>("status");
+  STATUS_ORDER.forEach((status) => statusSelect.add(new Option(STATUS_META[status].label, status)));
+
+  openBtn.addEventListener("click", () => {
+    form.reset();
+    field<HTMLInputElement>("dateAdded").value = todayLocal();
+    field<HTMLInputElement>("dateAdded").max = todayLocal();
+    error.textContent = "";
+    submit.disabled = false;
+    dialog.showModal();
+    field<HTMLInputElement>("company").focus();
+  });
+  document.getElementById("add-job-cancel")?.addEventListener("click", () => dialog.close());
+  // Backdrop click closes, like the detail panel's overlay.
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const value = (name: string) => field<HTMLInputElement>(name).value.trim();
+    const company = value("company");
+    const jobTitle = value("jobTitle");
+    if (!company || !jobTitle) {
+      error.textContent = "Enter a company and a job title";
+      field<HTMLInputElement>(company ? "jobTitle" : "company").focus();
+      return;
+    }
+    const url = value("url");
+    if (url && !/^https?:\/\/\S+$/i.test(url)) {
+      error.textContent = "Enter the job link as a full web address (https://…)";
+      field<HTMLInputElement>("url").focus();
+      return;
+    }
+
+    error.textContent = "";
+    submit.disabled = true;
+    try {
+      const result = await addJob({
+        company,
+        jobTitle,
+        location: value("location"),
+        url,
+        dateAdded: value("dateAdded") || todayLocal(),
+        status: statusSelect.value as JobStatus,
+        notes: field<HTMLTextAreaElement>("notes").value.trim(),
+      });
+      if (result.status === "limit") {
+        error.replaceChildren(
+          `You've used all ${FREE_JOB_LIMIT} free saves. `,
+          Object.assign(document.createElement("a"), {
+            href: "../settings/settings.html#plan",
+            textContent: "Unlock Liber",
+          }),
+          " to keep adding applications.",
+        );
+        return;
+      }
+      if (result.status === "duplicate") {
+        error.textContent = "You've already saved this application";
+        return;
+      }
+      dialog.close();
+      currentPage = 1;
+      await renderJobs();
+      const jobId = result.job.id;
+      showUndoToast("Application added", async () => {
+        await deleteJob(jobId);
+        renderJobs();
+      });
+    } catch {
+      error.textContent = "Couldn't add the application. Try again.";
+    } finally {
+      submit.disabled = false;
+    }
+  });
+}
+
 // Full view only — the popup has no room for a collapsible sidebar.
 // Collapsed state persists across visits like the theme does.
 function initSidebarToggle(): void {
@@ -1400,6 +1503,8 @@ export function initDashboard(options: InitDashboardOptions = {}): void {
         renderJobs();
       });
     });
+
+    initAddJob();
 
     profileSwitcherBtn = document.getElementById("profile-switcher");
     profileSwitcherBtn?.addEventListener("click", () =>

@@ -7,6 +7,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [0.1.0] - Unreleased
 
 ### Added
+- Payments: Stripe Checkout returns to `site/thanks.html` / `site/cancelled.html`
+  on GitHub Pages; the restore-code screen is back (show + copy the code once
+  paid, enter one to restore), and an unfinished checkout's code is reused by the
+  next one.
+- An Add button on the dashboard to add an application by hand (company, title,
+  location, date, status, link, notes), with an undo toast.
+- CSV import in Settings → Account & Data: reads a Liber export or a spreadsheet
+  with a Company or Job title column into the chosen profile, skipping
+  duplicates. On the free plan an import is never refused, but imported jobs count
+  towards the 10 free saves, so the next save after going over is stopped.
 - Site structures: Claude reads the cleaned HTML of the job, proposes CSS selectors,
   and validated selectors are stored per hostname (`site_structures`, via the new
   `site-structure` function, with the page they were learned from) so later visits
@@ -52,6 +62,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   result — no field preview, since nothing's extracted at prompt time.
 
 ### Changed
+- The Free plan reads "10 applications saved in total (deleting doesn't free a
+  slot)" instead of "tracked at a time", which was never how the limit worked.
 - The page snapshot taken when Apply is clicked now survives the background worker
   being stopped (it is kept in session storage until the user answers), so a page
   reload or redirect before answering still shows the prompt with the original
@@ -89,6 +101,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   first-time setup).
 
 ### Fixed
+- With Cloud Sync on, jobs the server refused at the free limit disappeared from
+  the device on the next refresh; they now stay on the device (and upload once
+  the account is paid).
+- Adding a job profile from the dashboard: the form had no Add button and
+  "+ Add profile" stayed visible (its `display: flex` beat `hidden`), so clicking
+  it again did nothing. Switching to the new profile also dropped the default
+  "General" profile from every list, hiding its jobs; switching now keeps it.
 - Stored selectors on multi-job pages returned the first job instead of the one
   applied to.
 - The password eye icon was pushed below the input's centre by a stray button

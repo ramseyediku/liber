@@ -204,7 +204,7 @@
                 <p class="settings__plan-price">£0</p>
                 <p class="settings__plan-note" id="plan-free-note">Your current plan</p>
                 <ul class="settings__perks">
-                  <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="../shared/icons.svg#icon-check"></use></svg><span><strong>Up to 10 applications</strong> tracked at a time</span></li>
+                  <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="../shared/icons.svg#icon-check"></use></svg><span><strong>10 applications</strong> saved in total (deleting doesn't free a slot)</span></li>
                   <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="../shared/icons.svg#icon-check"></use></svg><span><strong>1 job profile</strong> to group your search</span></li>
                   <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="../shared/icons.svg#icon-check"></use></svg><span><strong>10 automatic captures</strong> from job pages</span></li>
                   <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="../shared/icons.svg#icon-check"></use></svg><span><strong>Cloud sync</strong> with a free account</span></li>
@@ -234,13 +234,15 @@
               <span></span>
             </p>
 
-            <!-- Restore code UI disabled for now (logic commented out in settings.ts):
-            <div class="settings__row settings__row--stack hidden" id="plan-code-row">
+            <div class="settings__row hidden" id="plan-code-row">
               <div class="settings__text">
                 <span class="settings__title">Your restore code</span>
-                <span class="settings__desc">Keep this somewhere safe. If you clear your browser data you can use it to get Premium back.</span>
+                <span class="settings__desc">Keep this somewhere safe. If you log out, clear your browser data or use another computer, enter it here to get Premium back.</span>
               </div>
-              <code class="settings__code" id="plan-code"></code>
+              <div class="settings__export">
+                <code class="settings__code" id="plan-code"></code>
+                <button type="button" class="settings__btn settings__btn--ghost" id="plan-code-copy">Copy</button>
+              </div>
             </div>
 
             <form class="settings__row settings__row--form" id="restore-form" novalidate>
@@ -254,7 +256,6 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="../shared/icons.svg#icon-alert-circle"></use></svg>
               <span></span>
             </p>
-            -->
           </section>
 
           <!-- Account -->
@@ -345,6 +346,24 @@
                 </button>
               </div>
             </div>
+            <div class="settings__row">
+              <div class="settings__text">
+                <span class="settings__title">Import applications</span>
+                <span class="settings__desc" id="import-desc"></span>
+              </div>
+              <div class="settings__export">
+                <select id="import-profile" aria-label="Job profile to import into"></select>
+                <input type="file" id="import-file" accept=".csv,text/csv" hidden />
+                <button type="button" class="settings__btn settings__btn--ghost" id="import-btn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="../shared/icons.svg#icon-upload"></use></svg>
+                  Import CSV
+                </button>
+              </div>
+            </div>
+            <p class="settings__error hidden" id="import-error" role="alert">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="../shared/icons.svg#icon-alert-circle"></use></svg>
+              <span></span>
+            </p>
 
             <div id="account-signed-in-end" class="hidden">
               <div class="settings__row">

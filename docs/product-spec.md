@@ -52,6 +52,11 @@ an active job search.
   pills with counts, search, edit status (Applied / Interviewing / Offer /
   Rejected / Withdrawn), notes, and delete (a real delete after a short undo
   window)
+- Add an application by hand from the dashboard (company, title, location,
+  date, status, link, notes)
+- Import applications from a CSV (a Liber export or your own spreadsheet) in
+  Settings. Free accounts may import past the 10-save limit; imported jobs
+  count towards it, so the next save after that is refused.
 - Job profiles: group applications by the role being sought; the dashboard shows
   the active profile's jobs and a dropdown switches between them
 - Accounts via Supabase Auth (email/password, no email confirmation). Guests are

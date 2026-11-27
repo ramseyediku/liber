@@ -14,6 +14,14 @@ export async function sha256Hex(input: string): Promise<string> {
 // as XXXX-XXXX-XXXX-XXXX (cosmetic only; this returns the plain string).
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I — avoids visual ambiguity
 
+export function isRestoreCode(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length === 16 &&
+    [...value].every((ch) => CODE_ALPHABET.includes(ch))
+  );
+}
+
 export function generateRestoreCode(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   return Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join("");
