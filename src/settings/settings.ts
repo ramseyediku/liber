@@ -4,7 +4,6 @@
 // updates (not in the mockup).
 import {
   createJobProfile,
-  flushPendingUpdates,
   deleteAccount,
   getActiveJobProfileId,
   getAllJobProfiles,
@@ -16,6 +15,8 @@ import {
 } from "../shared/storage.ts";
 import { ensureSession, getSupabaseClient, isPermanentUser } from "../shared/supabaseClient.ts";
 import { isSyncEnabled, setSyncEnabled } from "../shared/sync.ts";
+import { turnOnSync } from "../shared/syncEnable.ts";
+import { requireSetup, welcomeUrl } from "../shared/requireSetup.ts";
 import { isPaid, startCheckout } from "../shared/entitlements.ts";
 import { isDevInstall, removeDemoJobs, seedDemoJobs } from "../shared/demoData.ts";
 import type { Job, JobProfile, Profile } from "../shared/types.ts";
@@ -296,8 +297,16 @@ async function renderSyncRow(permanent: boolean): Promise<void> {
 
 syncSwitch.addEventListener("click", async () => {
   const enable = syncSwitch.getAttribute("aria-checked") !== "true";
-  await setSyncEnabled(enable);
-  if (enable) void flushPendingUpdates().catch(() => {});
+  if (enable) {
+    // Asks which version wins if this device and the cloud differ, then uploads
+    // what was saved while sync was off (see syncEnable.ts).
+    if (!(await turnOnSync())) {
+      await renderSyncRow(true); // cancelled or not logged in: leave it off
+      return;
+    }
+  } else {
+    await setSyncEnabled(false);
+  }
   await renderSyncRow(true);
   await renderExportSummary();
   showToast(enable ? "Cloud sync turned on" : "Cloud sync turned off");
@@ -433,7 +442,7 @@ passwordForm.addEventListener("submit", async (event) => {
 logoutBtn.addEventListener("click", async () => {
   logoutBtn.disabled = true;
   await getSupabaseClient().auth.signOut();
-  window.location.href = "../dashboard/dashboard-full.html";
+  window.location.href = welcomeUrl(); // start over, as a new guest
 });
 
 el("delete-open").addEventListener("click", () => {
@@ -636,4 +645,6 @@ const hashTab = tabs.find(
 if (hashTab) selectTab(hashTab);
 
 initSidebarToggle();
-init();
+requireSetup().then((ready) => {
+  if (ready) init();
+});

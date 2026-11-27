@@ -21,6 +21,9 @@ interface RecordSaveBody {
   company: string;
   location: string;
   url: string;
+  // YYYY-MM-DD the job was originally saved on this device — present when a
+  // job saved while Cloud Sync was off is uploaded later.
+  dateApplied?: string;
 }
 
 function normalize(value: string | undefined | null): string {
@@ -42,6 +45,10 @@ Deno.serve(async (req: Request) => {
   const jobTitle = body.jobTitle || "Unknown title";
   const company = body.company || "Unknown company";
   const location = body.location || "";
+  const dateApplied =
+    typeof body.dateApplied === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.dateApplied)
+      ? body.dateApplied
+      : undefined;
 
   const supabase = getServiceClient();
 
@@ -86,6 +93,7 @@ Deno.serve(async (req: Request) => {
         company,
         location,
         url: body.url || "",
+        ...(dateApplied ? { date_applied: dateApplied } : {}),
       },
       { onConflict: "id" },
     )

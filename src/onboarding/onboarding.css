@@ -126,6 +126,11 @@ label {
 
 .onboarding--auth {
   text-align: left;
+  /* Centred in the window by `body:has(.onboarding--auth)` below, and
+     compact enough that login/signup fit a laptop viewport without a
+     scrollbar — spacing scales with the window height. */
+  margin-top: 0;
+  padding-block: var(--space-4);
 
   h1,
   h1 + p {
@@ -133,14 +138,39 @@ label {
   }
 
   h1 {
-    font-size: 2.75rem;
+    margin-bottom: var(--space-2);
+    font-size: 2.25rem;
+    line-height: 1.1;
   }
+
+  h1 + p {
+    margin-block: 0;
+    font-size: 0.95rem;
+    line-height: 1.35;
+  }
+
+  .auth-field {
+    margin-block: clamp(0.6rem, 2.2vh, 1.4rem) 0;
+  }
+
+  input {
+    padding-block: var(--space-4);
+  }
+
+  form > button[type="submit"] {
+    margin-top: clamp(0.8rem, 2.6vh, 1.5rem);
+  }
+}
+
+body:has(.onboarding--auth) {
+  min-height: 100dvh;
+  align-content: center;
 }
 
 .auth-back {
   display: flex;
   width: fit-content;
-  margin-block-end: var(--space-6);
+  margin-block-end: clamp(1rem, 3.5vh, 2rem);
   align-items: center;
   gap: var(--space-2);
   color: var(--clr-dark);
@@ -199,10 +229,14 @@ label {
   }
 }
 
-.auth-field__toggle {
+/* Doubled selector: `.onboarding button` gives every button in the card a top
+   margin (for the submit button), which pushed this one below the input's
+   vertical centre. */
+.auth-field__control .auth-field__toggle {
   position: absolute;
   right: var(--space-2);
   top: 50%;
+  margin: 0;
   translate: 0 -50%;
   width: 2.6em;
   aspect-ratio: 1;
@@ -251,7 +285,8 @@ label {
   outline: 2px solid color-mix(in srgb, var(--clr-rejected-text) 55%, transparent);
 }
 
-.auth-field__control input[data-valid="true"] {
+/* toggleAttribute("data-valid") sets an empty value, so match the bare attribute. */
+.auth-field__control input[data-valid] {
   outline: 2px solid color-mix(in srgb, var(--clr-offer-dot) 55%, transparent);
 }
 

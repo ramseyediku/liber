@@ -8,7 +8,7 @@
 // whose HTML is empty.
 import { getSupabaseClient } from "./supabaseClient.ts";
 import { sanitizeSelectors } from "./structure.ts";
-import type { ExtractionResult } from "./types.ts";
+import type { ExtractionResult, PageHints } from "./types.ts";
 
 const EXTRACT_FUNCTION_NAME = "extract-job-fields";
 
@@ -16,6 +16,7 @@ export interface ExtractionInput {
   scopeHtml: string;
   scopeText: string;
   hostname: string;
+  pageHints: PageHints | null;
 }
 
 export async function extractJobFields(input: ExtractionInput): Promise<ExtractionResult> {
@@ -37,5 +38,7 @@ export async function extractJobFields(input: ExtractionInput): Promise<Extracti
     },
     selectors: sanitizeSelectors(data?.selectors),
     claude,
+    ...(typeof data?.model === "string" ? { model: data.model } : {}),
+    ...(data?.escalated ? { escalated: true } : {}),
   };
 }

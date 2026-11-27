@@ -4,3 +4,5 @@ src/shared/env.ts
 .claude/
 dist/
 skills-lock.json
+release/
+.impeccable

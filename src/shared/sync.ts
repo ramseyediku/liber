@@ -8,11 +8,12 @@
 // from Supabase, so a job saved on another device under the same account
 // becomes visible here too.
 import { isPermanentUser } from "./supabaseClient.ts";
+import { accountStorage } from "./accountStore.ts";
 
 const SYNC_ENABLED_KEY = "liber_cloud_sync_enabled";
 
 export async function isSyncEnabled(): Promise<boolean> {
-  const result = (await browser.storage.local.get(SYNC_ENABLED_KEY)) as Record<string, boolean>;
+  const result = (await accountStorage.get(SYNC_ENABLED_KEY)) as Record<string, boolean>;
   return !!result[SYNC_ENABLED_KEY];
 }
 
@@ -20,6 +21,6 @@ export async function isSyncEnabled(): Promise<boolean> {
 // responsible for sending the user to sign in first if this returns false.
 export async function setSyncEnabled(enabled: boolean): Promise<boolean> {
   if (enabled && !(await isPermanentUser())) return false;
-  await browser.storage.local.set({ [SYNC_ENABLED_KEY]: enabled });
+  await accountStorage.set({ [SYNC_ENABLED_KEY]: enabled });
   return true;
 }

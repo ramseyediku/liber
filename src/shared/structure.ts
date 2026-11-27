@@ -74,3 +74,16 @@ export function selectorsReproduce(
     return valuesMatch(expected[field], got[field]);
   });
 }
+
+// The page a structure was learned from, kept alongside it for reference:
+// origin + path only. The query string and fragment are dropped, since they
+// can carry session or tracking data and don't identify the page.
+export function pageKey(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return "";
+    return `${u.origin}${u.pathname}`.slice(0, 300);
+  } catch {
+    return "";
+  }
+}

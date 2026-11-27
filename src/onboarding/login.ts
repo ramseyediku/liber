@@ -1,5 +1,5 @@
 // Sign in with an existing email/password account.
-import { adoptAccountJobProfile, markOnboarded } from "../shared/storage.ts";
+import { markOnboarded } from "../shared/storage.ts";
 import { getSupabaseClient } from "../shared/supabaseClient.ts";
 
 LiberTheme.initToggle(document.getElementById("theme-toggle"));
@@ -10,7 +10,6 @@ const form = document.getElementById("login-form") as HTMLFormElement;
 const emailInput = form.elements.namedItem("email") as HTMLInputElement;
 const passwordInput = form.elements.namedItem("password") as HTMLInputElement;
 const emailCheck = document.getElementById("email-check")!;
-const passwordCheck = document.getElementById("password-check")!;
 const emailError = document.getElementById("email-error")!;
 const passwordError = document.getElementById("password-error")!;
 const authError = document.getElementById("auth-error")!;
@@ -19,9 +18,18 @@ const toggleBtn = document.getElementById("toggle-password") as HTMLButtonElemen
 
 let tried = false;
 
-function syncField(input: HTMLInputElement, check: HTMLElement, error: HTMLElement, valid: boolean): void {
-  check.classList.toggle("hidden", !valid);
-  input.toggleAttribute("data-valid", valid);
+// `check` is the green tick shown on a valid field (email only — password
+// fields have none, so they never get the green outline either).
+function syncField(
+  input: HTMLInputElement,
+  check: HTMLElement | null,
+  error: HTMLElement,
+  valid: boolean,
+): void {
+  if (check) {
+    check.classList.toggle("hidden", !valid);
+    input.toggleAttribute("data-valid", valid);
+  }
   const showError = tried && !valid;
   input.setAttribute("aria-invalid", showError ? "true" : "false");
   error.classList.toggle("hidden", !showError);
@@ -37,7 +45,7 @@ function passwordValid(): boolean {
 
 function syncAll(): void {
   syncField(emailInput, emailCheck, emailError, emailValid());
-  syncField(passwordInput, passwordCheck, passwordError, passwordValid());
+  syncField(passwordInput, null, passwordError, passwordValid());
 }
 
 emailInput.addEventListener("input", syncAll);
@@ -70,7 +78,6 @@ form.addEventListener("submit", async (event) => {
       return;
     }
     await markOnboarded();
-    await adoptAccountJobProfile();
     window.location.href = "../dashboard/dashboard-full.html";
   } finally {
     submitBtn.disabled = false;

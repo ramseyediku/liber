@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   hasCoreFields,
   hasCoreSelectors,
+  pageKey,
   sanitizeSelectors,
   selectorsReproduce,
   valuesMatch,
@@ -80,4 +81,16 @@ test("selectorsReproduce: rejects a structure missing a core selector", () => {
     selectorsReproduce({ jobTitle: "h1", company: "", location: "" }, snap("Dev", "Acme"), snap("Dev", "Acme")),
     false,
   );
+});
+
+test("pageKey: keeps origin and path, drops query and fragment", () => {
+  assert.equal(
+    pageKey("https://jobs.acme.com/post/123?utm_source=x&session=abc#apply"),
+    "https://jobs.acme.com/post/123",
+  );
+});
+
+test("pageKey: rejects non-web and malformed URLs", () => {
+  assert.equal(pageKey("chrome-extension://abc/page.html"), "");
+  assert.equal(pageKey("not a url"), "");
 });

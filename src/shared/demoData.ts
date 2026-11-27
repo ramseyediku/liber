@@ -3,6 +3,7 @@
 // extension storage — nothing is sent to Supabase — and every demo row has an
 // id starting with DEMO_PREFIX so it can be removed without touching real jobs.
 import { getActiveJobProfileId } from "./storage.ts";
+import { accountStorage } from "./accountStore.ts";
 import type { Job, JobStatus } from "./types.ts";
 
 const JOBS_CACHE_KEY = "liber_jobs";
@@ -43,7 +44,7 @@ export function isDevInstall(): boolean {
 }
 
 async function readJobs(): Promise<Job[]> {
-  const result = (await browser.storage.local.get(JOBS_CACHE_KEY)) as Record<string, Job[]>;
+  const result = (await accountStorage.get(JOBS_CACHE_KEY)) as Record<string, Job[]>;
   return result[JOBS_CACHE_KEY] || [];
 }
 
@@ -72,13 +73,13 @@ export async function seedDemoJobs(): Promise<number> {
   }));
   // Reseeding replaces the previous demo rows instead of stacking duplicates.
   const real = existing.filter((j) => !j.id.startsWith(DEMO_PREFIX));
-  await browser.storage.local.set({ [JOBS_CACHE_KEY]: [...demo, ...real] });
+  await accountStorage.set({ [JOBS_CACHE_KEY]: [...demo, ...real] });
   return demo.length;
 }
 
 export async function removeDemoJobs(): Promise<number> {
   const existing = await readJobs();
   const real = existing.filter((j) => !j.id.startsWith(DEMO_PREFIX));
-  await browser.storage.local.set({ [JOBS_CACHE_KEY]: real });
+  await accountStorage.set({ [JOBS_CACHE_KEY]: real });
   return existing.length - real.length;
 }

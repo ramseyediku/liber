@@ -19,15 +19,20 @@ an active job search.
 
 ## Core user flow
 
-1. **First install** — user is taken to the onboarding page, creates an
-   account (email/password) and enters their name and target profession.
-   A returning user signs in instead.
+1. **First install** — user is taken to the welcome page, enters their name and
+   (optionally) the role they are applying for; the role becomes their first
+   job profile. No account is needed: they are a guest. Someone who already has
+   an account uses the "Already have an account? Log in" link instead.
 2. **Applying** — user clicks "Apply" (or similar) on any job site. Liber
-   detects this and scrapes the visible job details.
-3. **Confirm** — a browser notification asks "Save this job application?".
-   User clicks "Save to Liber" or "Dismiss".
-4. **Track** — saved jobs appear in the dashboard (toolbar popup), where the
-   user can update status, add notes, or delete an entry.
+   detects this and captures the job's page content.
+3. **Confirm** — a large prompt at the top centre of the page asks "Save this
+   job to your tracker?". A new Apply click replaces any prompt already showing.
+   Nothing is read or sent until they say yes.
+4. **Track** — saved jobs appear in the dashboard (toolbar popup and full page),
+   where the user can update status, add notes, or delete an entry for good.
+5. **Optionally sign up / sync** — signing up upgrades the guest account in place;
+   turning on Cloud Sync uploads the device's data (asking which version wins if
+   it differs from the cloud). Without sync, data never leaves the device.
 
 ## Feature set (current, v0.1)
 
@@ -39,12 +44,24 @@ an active job search.
   first step toward the trained classifier planned for v2/v3 (see
   roadmap.md). No longer tied to WebGPU/device capability, since extraction
   runs server-side.
-- Save-confirmation via native browser notification
-- Dashboard: list, edit status (Applied / Interviewing / Offer / Rejected /
-  Withdrawn), edit notes inline, delete
-- Accounts via Supabase Auth (email/password); jobs and profile data are
-  stored in Supabase (Postgres), tied to the signed-in account — see "Design
-  principles" below for what this reverses from the original v0.1 design.
+- Save-confirmation prompt on the page (native notification only as a fallback)
+- Capture cost control: the page's own structured data first, then a site
+  structure learned on an earlier visit (selectors, picking the match nearest the
+  Apply button clicked), then Claude. See `docs/architecture.md`.
+- Dashboard: list (9 per page, pagination in a fixed position), status filter
+  pills with counts, search, edit status (Applied / Interviewing / Offer /
+  Rejected / Withdrawn), notes, and delete (a real delete after a short undo
+  window)
+- Job profiles: group applications by the role being sought; the dashboard shows
+  the active profile's jobs and a dropdown switches between them
+- Accounts via Supabase Auth (email/password, no email confirmation). Guests are
+  upgraded in place when they sign up.
+- **Local-first data.** Jobs and profiles live on the device; Cloud Sync (off by
+  default, needs an account) is the only thing that sends them to Supabase.
+- Plans: Free (10 saves, one job profile, 10 automatic captures) and Premium
+  (£3.99 one-time, no limits). Checkout is built but waits on Stripe secrets.
+- First-run tour of the dashboard; a developer-only capture log button on the
+  dashboard showing how each capture was resolved
 
 ## Design principles
 
@@ -61,6 +78,37 @@ an active job search.
   match, so the rule holds consistently across the whole extension, not
   just the one screen it was first stated for. Any new user-facing copy
   should be checked against this before mentioning the underlying tech.
+
+### Interface decisions
+
+Decisions made while building the v2 interface, stated as the rules to keep, with
+the user's own reason where one was given:
+
+- **One corner radius for everything** (`--border-radius`, currently 0.75rem). It
+  began as "the least prominent existing radius wins" (the smallest one in use) and
+  was then tuned upward by experiment. Circles (avatars, dots, the toggle) are
+  exempt.
+- **Popovers:** clicking away closes one; clicking the button of a popover that is
+  already open does nothing (it neither closes nor re-opens it, so the open
+  animation doesn't replay).
+- **Table/pagination:** 9 rows per page in a table of fixed height so the
+  pagination never moves between pages; the status pills, search and the table
+  headers stay visible even with no applications.
+- **Settings** is a row of pill tabs (Profile, Plan, Account & Data, and a
+  developer tab on unpacked installs), modelled on a reference screen the user
+  supplied; the Plan tab on a plans screen they supplied. Cloud sync lives in the
+  profile popover, not the sidebar.
+- **Login/signup pages fit the window with no vertical scrolling**, centred, with
+  spacing that scales with the window height (checked in headless Chrome at common
+  laptop sizes).
+- **The tour is kept short** so it doesn't overwhelm new users (the user's concern):
+  the page as a whole, job profiles, table, status pills, search, Settings — and a
+  one-step "you're using a guest account" note for guests only.
+- **Fewer calls (the user's rule):** edits are applied locally and sent to Supabase
+  in batches, only with sync on; re-renders read the local cache.
+- **"Waiting N days"** turns red from 90 days (amber from 14).
+- **Form checks:** the green tick (and green outline) appears on the email field
+  only; password fields have none.
 
 ## Non-goals (for now)
 

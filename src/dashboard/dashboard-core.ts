@@ -21,6 +21,9 @@ import {
   isPermanentUser,
 } from "../shared/supabaseClient.ts";
 import { isSyncEnabled, setSyncEnabled } from "../shared/sync.ts";
+import { turnOnSync } from "../shared/syncEnable.ts";
+import { welcomeUrl } from "../shared/requireSetup.ts";
+import { isAccountKey } from "../shared/accountStore.ts";
 import type { Job, JobProfile, JobStatus, Profile } from "../shared/types.ts";
 
 const EMPTY_MESSAGE =
@@ -264,10 +267,18 @@ async function openProfilePopover(anchorBtn: HTMLElement): Promise<void> {
   };
   paintSwitch();
   syncSwitch.addEventListener("click", async () => {
-    syncOn = !syncOn;
+    const turningOn = !syncOn;
+    if (turningOn) {
+      // Asks which version wins if this device and the cloud differ, then
+      // uploads what was saved while sync was off (see syncEnable.ts).
+      if (!(await turnOnSync())) return paintSwitch(); // cancelled: put it back
+      syncOn = true;
+      await renderGreeting();
+    } else {
+      syncOn = false;
+      await setSyncEnabled(false);
+    }
     paintSwitch();
-    await setSyncEnabled(syncOn);
-    if (syncOn) void flushPendingUpdates().catch(() => {});
     renderJobs(true); // getAllJobs() reads from a different source depending on the flag
   });
   syncRow.append(syncLabel, syncSwitch);
@@ -284,7 +295,7 @@ async function openProfilePopover(anchorBtn: HTMLElement): Promise<void> {
   signOutBtn.addEventListener("click", async () => {
     await getSupabaseClient().auth.signOut();
     closeActivePopover();
-    await refreshSignedInState(); // re-establishes a fresh anonymous session
+    window.location.href = welcomeUrl(); // start over, as a new guest
   });
   popover.appendChild(signOutBtn);
 
@@ -1408,23 +1419,25 @@ export function initDashboard(options: InitDashboardOptions = {}): void {
 
   refreshSignedInState();
 
-  // Edits are saved locally right away and pushed to Supabase in batches
+  // Changes are saved locally right away and pushed to Supabase in batches
   // (see storage.ts): on load, every minute, and when the page is hidden.
-  // flushPendingUpdates() does nothing while Cloud Sync is off.
-  const flush = () => void flushPendingUpdates().catch(() => {});
-  flush();
-  setInterval(flush, 60_000);
+  // Nothing is sent while Cloud Sync is off. The periodic flush respects the
+  // undo window for deletes; load/hide (no undo toast can be showing) don't.
+  const flush = (force: boolean) => () =>
+    void flushPendingUpdates({ force }).catch(() => {});
+  flush(true)();
+  setInterval(flush(false), 60_000);
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") flush();
+    if (document.visibilityState === "hidden") flush(true)();
   });
-  window.addEventListener("pagehide", flush);
+  window.addEventListener("pagehide", flush(true));
 
   // jobs/job_profiles live in browser.storage.local now (local-first —
   // see storage.ts), so a plain liber_jobs change already is the real
   // data changing.
   browser.storage.onChanged.addListener(
     (changes: { [key: string]: chrome.storage.StorageChange }) => {
-      if (changes.liber_jobs) {
+      if (Object.keys(changes).some((k) => isAccountKey(k, "liber_jobs"))) {
         if (activePopover) {
           rerenderPending = true;
         } else {

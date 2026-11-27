@@ -13,13 +13,13 @@
 //      against that same HTML and, if they reproduce its answer, stored as
 //      the site's structure so the next visit can use step 2.
 // then saves via storage.ts's dedup and reports the outcome back. Every step
-// is logged for the on-page capture log button. No persisted per-tab state —
+// is logged for the dashboard's capture log button. No persisted per-tab state —
 // each accepted click is one bounded async chain independent of tab lifecycle.
 
 import "../../vendor/browser-polyfill.js";
 import { addJob, isOnboarded } from "../shared/storage.ts";
 import { mergeSnapshot } from "../shared/fieldMerge.ts";
-import { appendLog, clearLogsForTab, getLogsForTab } from "../shared/logStorage.ts";
+import { appendLog } from "../shared/logStorage.ts";
 import { extractJobFields } from "../shared/extraction.ts";
 import {
   getActiveStructure,
@@ -27,10 +27,10 @@ import {
   learnStructure,
   reportStructure,
 } from "../shared/siteStructure.ts";
-import { hasCoreFields, selectorsReproduce } from "../shared/structure.ts";
+import { hasCoreFields, pageKey, selectorsReproduce } from "../shared/structure.ts";
 import { normalizeScrapedText } from "../shared/textNormalize.ts";
 import { ensureSession } from "../shared/supabaseClient.ts";
-import type { ExtractionResult, FieldSelectors, JobFieldSnapshot } from "../shared/types.ts";
+import type { ExtractionResult, FieldSelectors, JobFieldSnapshot, PageHints } from "../shared/types.ts";
 
 // Every context always needs a session (anonymous or not) before touching
 // entitlements/jobs — fire this once at worker startup rather than once per
@@ -66,24 +66,60 @@ interface PendingConsentEntry {
   url: string;
   scopeText: string;
   scopeHtml: string;
+  pageHints: PageHints | null;
   structuredSnapshot: JobFieldSnapshot | null;
   capturedAt: number;
 }
 
-// Tracks an unanswered consent prompt per tab (set the instant content.ts
-// shows it, cleared the instant the user answers) so it can follow a
-// redirect/new tab instead of being lost to the old page's teardown.
-const pendingConsentByTab = new Map<number, PendingConsentEntry>();
+// The page snapshot taken at the moment Apply was clicked, per tab, kept until
+// the user answers the prompt. "Yes" uses it and "No" deletes it; until then it
+// survives a page reload, a redirect, or a new tab opened from it, and is
+// offered back to the next page so the prompt reappears with the original
+// capture. Held in storage.session, not this worker's memory: MV3 stops the
+// background worker after ~30s idle, which used to lose the snapshot. Session
+// storage is in-memory too and cleared when the browser closes, so nothing about
+// the page is ever written to disk.
+const PENDING_CONSENT_KEY = "liber_pending_consent";
 
-// How long an unanswered prompt stays eligible to resume elsewhere.
-const PENDING_CONSENT_TTL_MS = 2 * 60 * 1000;
+// How long an unanswered snapshot stays eligible to resume.
+const PENDING_CONSENT_TTL_MS = 10 * 60 * 1000;
+
+async function readPendingConsents(): Promise<Record<string, PendingConsentEntry>> {
+  const result = (await browser.storage.session.get(PENDING_CONSENT_KEY)) as Record<
+    string,
+    Record<string, PendingConsentEntry>
+  >;
+  return result[PENDING_CONSENT_KEY] || {};
+}
+
+async function storePendingConsent(tabId: number, entry: PendingConsentEntry): Promise<void> {
+  const all = await readPendingConsents();
+  const now = Date.now();
+  for (const id of Object.keys(all)) {
+    if (now - all[id]!.capturedAt > PENDING_CONSENT_TTL_MS) delete all[id]; // expired
+  }
+  all[String(tabId)] = entry;
+  await browser.storage.session.set({ [PENDING_CONSENT_KEY]: all });
+}
+
+async function dropPendingConsent(tabId: number): Promise<boolean> {
+  const all = await readPendingConsents();
+  if (!(String(tabId) in all)) return false;
+  delete all[String(tabId)];
+  await browser.storage.session.set({ [PENDING_CONSENT_KEY]: all });
+  return true;
+}
+
+async function getPendingConsent(tabId: number): Promise<PendingConsentEntry | undefined> {
+  return (await readPendingConsents())[String(tabId)];
+}
 
 async function resolvePendingConsentFor(tabId: number): Promise<Omit<
   PendingConsentEntry,
   "capturedAt"
 > | null> {
   let sourceTabId = tabId;
-  let entry = pendingConsentByTab.get(sourceTabId);
+  let entry = await getPendingConsent(sourceTabId);
 
   if (!entry) {
     // Check whether this tab was opened from one with an unanswered prompt
@@ -93,7 +129,7 @@ async function resolvePendingConsentFor(tabId: number): Promise<Omit<
       const tab = await browser.tabs.get(tabId);
       if (tab.openerTabId != null) {
         sourceTabId = tab.openerTabId;
-        entry = pendingConsentByTab.get(sourceTabId);
+        entry = await getPendingConsent(sourceTabId);
       }
     } catch {
       // Tab gone/inaccessible — nothing to resume.
@@ -101,18 +137,27 @@ async function resolvePendingConsentFor(tabId: number): Promise<Omit<
   }
 
   if (!entry) return null;
-  pendingConsentByTab.delete(sourceTabId); // claimed — resumed only once
+  // Claimed: the resumed prompt stores it again (under this tab) right away,
+  // so a second reload before answering is still covered.
+  await dropPendingConsent(sourceTabId);
   if (Date.now() - entry.capturedAt > PENDING_CONSENT_TTL_MS) return null;
+  await appendLog({
+    tabId,
+    url: entry.url,
+    step: "snapshot restored after the page changed",
+    detail: { capturedAt: new Date(entry.capturedAt).toISOString() },
+  });
 
   return {
     url: entry.url,
     scopeText: entry.scopeText,
     scopeHtml: entry.scopeHtml,
+    pageHints: entry.pageHints,
     structuredSnapshot: entry.structuredSnapshot,
   };
 }
 
-type Outcome = "saved" | "duplicate" | "limit" | "failed";
+type Outcome = "saved" | "duplicate" | "limit" | "failed" | "nothing-found";
 
 // Fallback OS notification for when content.ts's popup can't be reached
 // (tab closed, or navigated to a page content.ts never runs on).
@@ -121,6 +166,7 @@ const OUTCOME_NOTIFICATION_TEXT: Record<Outcome, string> = {
   duplicate: "This job's already in your tracker.",
   limit: "You've hit the free limit — unlock Liber to keep saving.",
   failed: "Couldn't save this one — try again shortly.",
+  "nothing-found": "Couldn't find a job on this page. Try applying from the job's own page.",
 };
 
 async function showSaveResultNotification(tabId: number, outcome: Outcome): Promise<void> {
@@ -153,6 +199,7 @@ interface SaveRequest {
   url: string;
   scopeText: string;
   scopeHtml: string;
+  pageHints: PageHints | null;
   structuredSnapshot: JobFieldSnapshot | null;
 }
 
@@ -178,6 +225,9 @@ async function runSelectorsInTab(
 // resolved and whether Claude was involved.
 interface CaptureSummary {
   hostname: string;
+  // Plain-language answer to "how were the fields obtained?" — shown first in
+  // the dashboard's capture log.
+  method: string;
   source: "json-ld" | "structure" | "claude" | "none";
   claude: "called" | "not called" | "free limit reached" | "failed" | "no page content";
   structure: string;
@@ -195,13 +245,14 @@ const CLAUDE_LABEL: Record<ExtractionResult["claude"], CaptureSummary["claude"]>
 // nothing before this point ever touches Claude or the network.
 async function handleSaveRequested(
   tabId: number,
-  { url, scopeText, scopeHtml, structuredSnapshot }: SaveRequest,
+  { url, scopeText, scopeHtml, pageHints, structuredSnapshot }: SaveRequest,
 ): Promise<void> {
   pushExtractionStatus(tabId, { phase: "working", progress: 0 });
 
   const hostname = hostnameOf(url);
   const summary: CaptureSummary = {
     hostname,
+    method: "nothing found yet",
     source: "none",
     claude: "not called",
     structure: "none stored for this site",
@@ -215,7 +266,8 @@ async function handleSaveRequested(
     let merged: JobFieldSnapshot = structuredSnapshot || { jobTitle: "", company: "", location: "" };
     if (isComplete(merged)) {
       summary.source = "json-ld";
-      await log("fields read from the page's own structured data", merged);
+      summary.method = "the page's own structured data (JSON-LD), no Claude call";
+      await log("method: page's own structured data (JSON-LD)", merged);
     }
 
     // Step 2: a structure learned on an earlier visit.
@@ -230,8 +282,10 @@ async function handleSaveRequested(
           merged = structuredSnapshot ? mergeSnapshot(structuredSnapshot, read).merged : read;
           summary.source = "structure";
           summary.structure = `v${stored.version} used`;
-          await log("fields read with the stored site structure (Claude not called)", {
+          summary.method = `stored site structure v${stored.version} for ${hostname}, no Claude call`;
+          await log(`method: stored site structure v${stored.version} (Claude not called)`, {
             version: stored.version,
+            learnedFrom: stored.learnedFrom ?? null,
             selectors: stored.selectors,
             read,
           });
@@ -257,17 +311,22 @@ async function handleSaveRequested(
       let result: ExtractionResult;
       if (cached) {
         result = cached;
-        await log("Claude not called: this page was already read this session", cached.snapshot);
+        summary.method = "Claude's earlier answer for this exact page (cached this session), no new Claude call";
+        await log("method: cached Claude answer for this page (Claude not called)", cached.snapshot);
       } else {
-        await log("calling Claude", {
+        summary.method = "Claude (first read of this page)";
+        await log("method: calling Claude", {
           hostname,
           htmlChars: scopeHtml.length,
           textChars: scopeText.length,
         });
-        result = await extractJobFields({ scopeHtml, scopeText, hostname });
+        result = await extractJobFields({ scopeHtml, scopeText, hostname, pageHints });
         cacheExtraction(url, result);
         summary.claude = CLAUDE_LABEL[result.claude];
+        if (result.escalated) summary.method = "Claude (first read of this page; a stronger model retried)";
         await log(`Claude ${CLAUDE_LABEL[result.claude]}`, {
+          model: result.model ?? null,
+          escalatedToStrongerModel: !!result.escalated,
           fields: result.snapshot,
           proposedSelectors: result.selectors,
         });
@@ -288,9 +347,13 @@ async function handleSaveRequested(
           const reread = await runSelectorsInTab(tabId, scopeHtml, result.selectors);
           if (reread && selectorsReproduce(result.selectors, result.snapshot, reread)) {
             try {
-              await learnStructure(hostname, result.selectors);
+              await learnStructure(hostname, result.selectors, url);
               summary.structure = "learned and stored for next time";
-              await log("site structure learned and stored", result.selectors);
+              await log("site structure learned and stored", {
+                hostname,
+                learnedFrom: pageKey(url),
+                selectors: result.selectors,
+              });
             } catch (err) {
               summary.structure = "learned but could not be stored";
               await log("storing the site structure failed", {
@@ -312,12 +375,26 @@ async function handleSaveRequested(
 
     merged = normalizeSnapshot(merged);
 
-    // addJob's own Edge Function call (record-save) is what actually
-    // enforces the free job/profile limits — see storage.ts.
-    const saved = await addJob(merged);
-    outcome = saved.status;
-    summary.outcome = outcome;
-    await log(`save requested — ${outcome}`, merged);
+    if (!merged.jobTitle && !merged.company) {
+      // None of the three sources found a job here (no structured data, no
+      // stored structure that matched, and Claude found neither a title nor a
+      // company — or its free limit was used up). Saving would only add an
+      // "Unknown title / Unknown company" row, so tell the user instead.
+      outcome = "nothing-found";
+      summary.outcome = "nothing found — nothing saved";
+      await log("nothing usable found on this page — not saved", {
+        hostname,
+        claude: summary.claude,
+        structure: summary.structure,
+      });
+    } else {
+      // addJob's own Edge Function call (record-save) is what actually
+      // enforces the free job/profile limits — see storage.ts.
+      const saved = await addJob(merged);
+      outcome = saved.status;
+      summary.outcome = outcome;
+      await log(`save requested — ${outcome}`, merged);
+    }
   } catch (err) {
     await log("save requested — failed", {
       message: err instanceof Error ? err.message : String(err),
@@ -343,19 +420,32 @@ browser.runtime.onMessage.addListener((message: any, sender: chrome.runtime.Mess
   // a Promise.
   if (message.type === "LIBER_CONSENT_PENDING") {
     if (tabId == null) return;
-    pendingConsentByTab.set(tabId, {
+    return storePendingConsent(tabId, {
       url: message.url,
       scopeText: message.scopeText,
       scopeHtml: message.scopeHtml || "",
+      pageHints: message.pageHints || null,
       structuredSnapshot: message.structuredSnapshot || null,
       capturedAt: Date.now(),
-    });
-    return;
+    }).then(() =>
+      appendLog({
+        tabId,
+        url: message.url,
+        step: "snapshot of the page kept until the prompt is answered",
+        detail: { htmlChars: (message.scopeHtml || "").length },
+      }),
+    );
   }
 
   if (message.type === "LIBER_CONSENT_RESOLVED") {
-    if (tabId != null) pendingConsentByTab.delete(tabId);
-    return;
+    if (tabId == null) return;
+    // "No" → the snapshot is simply deleted. "Yes" → it travels with the save
+    // request (LIBER_SAVE_REQUESTED), so the stored copy isn't needed either.
+    return dropPendingConsent(tabId).then((dropped) => {
+      if (dropped && message.answer === "no") {
+        return appendLog({ tabId, url: message.url || "", step: "declined — page snapshot deleted", detail: null });
+      }
+    });
   }
 
   if (message.type === "LIBER_CHECK_PENDING_CONSENT") {
@@ -372,22 +462,13 @@ browser.runtime.onMessage.addListener((message: any, sender: chrome.runtime.Mess
     }).then(() => {});
   }
 
-  if (message.type === "LIBER_GET_LOGS") {
-    if (tabId == null) return Promise.resolve([]);
-    return getLogsForTab(tabId);
-  }
-
-  if (message.type === "LIBER_CLEAR_LOGS") {
-    if (tabId == null) return;
-    return clearLogsForTab(tabId).then(() => {});
-  }
-
   if (message.type === "LIBER_SAVE_REQUESTED") {
     if (tabId == null) return;
     handleSaveRequested(tabId, {
       url: message.url,
       scopeText: message.scopeText,
       scopeHtml: message.scopeHtml || "",
+      pageHints: message.pageHints || null,
       structuredSnapshot: message.structuredSnapshot || null,
     }).catch(() => {});
     return; // fire-and-forget — result delivered via LIBER_EXTRACTION_STATUS
@@ -399,5 +480,5 @@ browser.runtime.onMessage.addListener((message: any, sender: chrome.runtime.Mess
 });
 
 browser.tabs.onRemoved.addListener((tabId: number) => {
-  pendingConsentByTab.delete(tabId); // nowhere left to resume once the tab's gone
+  dropPendingConsent(tabId).catch(() => {}); // nowhere left to resume once the tab's gone
 });

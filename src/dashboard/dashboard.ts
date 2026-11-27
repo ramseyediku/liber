@@ -1,5 +1,6 @@
 // Entry point for the popup page — table logic lives in dashboard-core.ts.
 import { initDashboard } from "./dashboard-core.ts";
+import { requireSetup } from "../shared/requireSetup.ts";
 
 document.getElementById("expand-view")!.addEventListener("click", () => {
   browser.tabs.create({
@@ -8,4 +9,6 @@ document.getElementById("expand-view")!.addEventListener("click", () => {
   window.close();
 });
 
-initDashboard({ cardMode: true, cardLimit: 4 });
+requireSetup({ popup: true }).then((ready) => {
+  if (ready) initDashboard({ cardMode: true, cardLimit: 4 });
+});

@@ -861,3 +861,69 @@
 .dashboard__card-stale.dashboard__stale--overdue {
   color: var(--clr-rejected-text);
 }
+
+/* "Which version should win?" — shown when turning Cloud Sync on finds this
+   device and the cloud disagree (see syncPrompt.ts). */
+.sync-dialog {
+  width: min(28rem, calc(100vw - 2rem));
+  padding: var(--space-6);
+  border: 1px solid var(--clr-grey-dark);
+  border-radius: var(--border-radius);
+  background: var(--clr-white);
+  color: var(--clr-dark);
+  box-shadow: var(--box-shadow);
+
+  &::backdrop {
+    background: rgba(0, 0, 0, 0.45);
+  }
+
+  h2 {
+    margin: 0 0 var(--space-3);
+    font-size: 1.25rem;
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: var(--clr-muted);
+  }
+}
+
+.sync-dialog__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+
+  button {
+    width: 100%;
+    height: 2.9rem;
+    border-radius: var(--border-radius);
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover {
+      transform: none;
+    }
+  }
+}
+
+.sync-dialog__primary {
+  border: none;
+  background: var(--clr-accent);
+  color: var(--clr-white);
+}
+
+.sync-dialog__secondary {
+  border: 1px solid var(--clr-grey-dark);
+  background: transparent;
+  color: var(--clr-dark);
+}
+
+.sync-dialog__cancel {
+  border: none;
+  background: transparent;
+  color: var(--clr-muted);
+}

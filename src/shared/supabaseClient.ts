@@ -46,16 +46,35 @@ export function getSupabaseClient(): SupabaseClient {
 // all. Local-first storage/limits still treat anonymous vs permanent
 // differently (see storage.ts/sync.ts) — this just guarantees *a* session
 // exists, not which kind.
+//
+// The background worker and every page (dashboard, popup, settings…) each run
+// this, and each has its own module state — so at startup two contexts could
+// both see "no session" and each create a guest user, leaving an orphan. The
+// check-then-create runs under a Web Lock (shared by all contexts of the
+// extension), and the check is repeated once the lock is held, so the second
+// context finds the session the first one just stored.
+const SESSION_LOCK = "liber-ensure-session";
 let ensureSessionPromise: Promise<void> | null = null;
+
+async function createSessionIfMissing(): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { data } = await supabase.auth.getSession();
+  if (data.session) return;
+  const { error } = await supabase.auth.signInAnonymously();
+  if (error) throw error;
+}
 
 export function ensureSession(): Promise<void> {
   if (!ensureSessionPromise) {
     ensureSessionPromise = (async () => {
       const supabase = getSupabaseClient();
       const { data } = await supabase.auth.getSession();
-      if (data.session) return;
-      const { error } = await supabase.auth.signInAnonymously();
-      if (error) throw error;
+      if (data.session) return; // the common case: no lock needed
+      if (typeof navigator !== "undefined" && navigator.locks) {
+        await navigator.locks.request(SESSION_LOCK, createSessionIfMissing);
+      } else {
+        await createSessionIfMissing(); // no Web Locks: previous behaviour
+      }
     })();
     ensureSessionPromise.catch(() => {
       ensureSessionPromise = null; // don't cache a failed sign-in attempt

@@ -1,5 +1,42 @@
 # Roadmap
 
+## Open items and decisions (Nov 2026)
+
+Decisions are recorded where they belong (`docs/architecture.md`,
+`docs/product-spec.md`); this is what is still open.
+
+**Needs doing**
+- Set the Stripe secrets (see `docs/architecture.md`, "Backend") — checkout and
+  the webhook return 500 until then. The £3.99 price must exist in Stripe as
+  `STRIPE_PRICE_ID`.
+- Re-deploy `extract-job-fields` after any prompt change (the click-marker
+  instruction in its prompt is a recent one).
+- Try the capture pipeline on real sites with the capture log open: first visit
+  should say "Claude (first read of this page)" and "learned and stored"; a second
+  visit on the same site, on a *different job on a multi-job page*, should say
+  "stored site structure … no Claude call" and pick the job that was clicked. Only
+  verified so far under jsdom and against mocks.
+- Refresh the stale parts of `docs/architecture.md` (`.js` names, notification
+  confirm, server-first storage) — see its reading guide.
+
+**Known weaknesses, not yet addressed**
+- The shared `site_structures` table can be poisoned by a hostile client (it asks
+  the function to write). Mitigations today: plain-CSS validation and failure
+  scoring. Tightening option: require two users to agree before a structure goes
+  live.
+- Sync conflicts compare whole jobs with no base version, so a one-sided edit is
+  also reported as a conflict.
+- Guest accounts orphaned by sign-ups before the in-place upgrade still exist.
+- With email confirmation off, an email typo creates an unrecoverable account; a
+  "confirm email" field would help.
+- Jobs saved under the old always-upload behaviour are still in the database for
+  users who never turned sync on; they are only removed when sync is on and they
+  are deleted.
+- The restore-code UI is parked (commented out), not removed.
+- Capture, background and dashboard code have no unit tests; only the pure helpers
+  (`structure.ts`, `fieldMerge.ts`, `jobPostingLd.ts`) do. The storage logic was
+  exercised with an ad-hoc mocked harness that is not in the repo.
+
 ## Migrate to Claude API + Supabase (supersedes the on-device LLM sections below)
 
 Replaced the on-device WebLLM engine (`src/shared/llmEngine.js` +

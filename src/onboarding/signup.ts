@@ -5,7 +5,6 @@
 // orphaned guest account is left behind. signUp() (a brand-new user) is only
 // the fallback when there is no guest session.
 import {
-  ensureActiveJobProfileExists,
   getProfile,
   markOnboarded,
   setProfile,
@@ -22,7 +21,6 @@ const passwordInput = form.elements.namedItem("password") as HTMLInputElement;
 const nameInput = form.elements.namedItem("name") as HTMLInputElement;
 const nameError = document.getElementById("name-error")!;
 const emailCheck = document.getElementById("email-check")!;
-const passwordCheck = document.getElementById("password-check")!;
 const emailError = document.getElementById("email-error")!;
 const passwordError = document.getElementById("password-error")!;
 const authError = document.getElementById("auth-error")!;
@@ -38,9 +36,18 @@ getProfile()
   })
   .catch(() => {});
 
-function syncField(input: HTMLInputElement, check: HTMLElement, error: HTMLElement, valid: boolean): void {
-  check.classList.toggle("hidden", !valid);
-  input.toggleAttribute("data-valid", valid);
+// `check` is the green tick shown on a valid field (email only — password
+// fields have none, so they never get the green outline either).
+function syncField(
+  input: HTMLInputElement,
+  check: HTMLElement | null,
+  error: HTMLElement,
+  valid: boolean,
+): void {
+  if (check) {
+    check.classList.toggle("hidden", !valid);
+    input.toggleAttribute("data-valid", valid);
+  }
   const showError = tried && !valid;
   input.setAttribute("aria-invalid", showError ? "true" : "false");
   error.classList.toggle("hidden", !showError);
@@ -65,7 +72,7 @@ function syncAll(): void {
   emailError.querySelector("span")!.textContent = emailInput.value.trim()
     ? "Enter an email address like name@example.com"
     : "Enter your email address";
-  syncField(passwordInput, passwordCheck, passwordError, passwordValid());
+  syncField(passwordInput, null, passwordError, passwordValid());
   passwordError.querySelector("span")!.textContent = passwordInput.value
     ? "Password must be at least 8 characters"
     : "Enter a password";
@@ -113,7 +120,6 @@ form.addEventListener("submit", async (event) => {
           name: nameInput.value.trim(),
           profession: existingProfile?.profession ?? "",
         });
-        await ensureActiveJobProfileExists().catch(() => {});
         authError.textContent = "Check your email and open the link to finish creating your account.";
         authError.classList.remove("hidden");
         return;
@@ -132,10 +138,6 @@ form.addEventListener("submit", async (event) => {
       profession: existingProfile?.profession ?? "",
     });
     await markOnboarded();
-    // The new account starts with its default job profile (the role from
-    // setup, or "General") as a real profile, so it shows under Settings →
-    // Job profiles. Best effort: the first saved job creates it anyway.
-    await ensureActiveJobProfileExists().catch(() => {});
     window.location.href = "../dashboard/dashboard-full.html";
   } finally {
     submitBtn.disabled = false;

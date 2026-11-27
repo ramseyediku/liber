@@ -19,6 +19,13 @@ WebGPU. Data (jobs, job profiles, the user's own name/profession) now lives
 in a Supabase Postgres project behind Supabase Auth, not only in
 `browser.storage.local` — see "Data model" below.
 
+> **Reading guide.** The sections from "Components" down to "Design notes: dedup
+> key" were written before the TypeScript migration and the local-first/sync
+> work: they still say `.js`, describe a notification-based confirm step and a
+> server-first storage layer, and are partly out of date. The sections from
+> "Capture: JSON-LD → stored site structure → Claude" onward are current, and
+> are where decisions made since then are recorded (with who decided what).
+
 ## Components
 
 ### `src/content/content.js` — Content script
@@ -677,7 +684,306 @@ client could submit bad selectors for a site. Writes are limited to validated
 plain-CSS selectors and a bad one is switched off by failure reports, but
 promotion could be tightened (e.g. require agreement from two users).
 
-The floating capture-log button (`content.ts`, shadow DOM) shows each tab's
-log: what was captured, which source answered, whether Claude was called, and the
-save outcome. It's on by default for unpacked installs; Settings → Developer
-toggles it.
+### Choosing the right job on a multi-job page
+
+**The bug.** Stored selectors are generic (`.job-title`, `.company`). On a page
+that shows several jobs (a card list, or a list beside a detail pane) a
+selector matches *all* of them, and `querySelector` returns the first. So the
+first visit to a site was right (Claude read the page) and the second visit
+saved the first job in the list rather than the one applied to.
+
+**The decision (the user's).** When a stored structure is used, do not search or
+reason about which text is right. Of all the elements matching a selector, take
+the one **closest to the Apply button actually clicked**. It is deterministic
+and costs no Claude call — the whole point of storing a structure is to stop
+paying for Claude to reason about the page, and having it reason about *which*
+job would bring that cost back. Claude is only involved the first time.
+
+**Mechanics (`content.ts`).**
+- The clicked element is tagged `data-liber-clicked="1"` on the live DOM just
+  long enough for `collectScopeHtml` to copy it, then untagged (the page is left
+  as it was). The tag survives cleaning even though a `<button>` or an empty
+  element would normally be stripped — it is the anchor everything is measured
+  from.
+- `nearestMatch` takes `querySelectorAll(selector)` and scores each match by the
+  number of DOM steps between it and the button (up to the shared ancestor and
+  down), doubled, plus 1 if the match comes *after* the button — a card's title
+  precedes its Apply button, so on a tie the earlier node wins. Lowest score wins.
+- One match, or no tag (an older capture), falls back to the first match.
+- Claude's proposed selectors are checked through this same function before
+  being stored, so a structure is validated under exactly the rule that will
+  apply it. Claude is also told about the tag in its prompt, so the first read
+  extracts the clicked job, not just the first one on the page.
+
+**Known limits.** If the Apply button sits inside a container that cleaning
+strips (`header`, `nav`) the tag is lost and the first match is used. A site
+whose cards are not structurally near their own buttons could still pick the
+wrong one. Verified under jsdom on a three-job listing (clicks on #1, #2, #3) and
+a list + detail-pane layout; not yet on live sites.
+
+### When the page is messy (Claude can't make out the structure)
+
+Reported by the user: on messy pages Claude sometimes could not find the fields.
+What it was being given, and the specific weaknesses that follow from that:
+- **Only HTML.** The visible text was sent only when the HTML was empty, so on
+  div-soup pages Claude lost the reading-order text, which is usually clearer.
+- **No page-level signals.** `<meta>` and the header are stripped, so the
+  document title, `og:title`, site name and `<h1>` — often "Job title – Company"
+  even on a messy page — never reached Claude.
+- **Cut from the top.** The 24k cap kept the *start* of the scope, so on a wide
+  scope (a long listing page) the clicked job could fall past the cut.
+- **One shot, smallest model.** No retry when title or company came back empty.
+
+What changed: `content.ts` sends **page hints** (title, og:title, og:site_name,
+description, up to three `<h1>`s); `extract-job-fields` gives Claude hints + HTML +
+the visible text together and a prompt that says the HTML may be messy and to lean
+on text and hints then; HTML over the cap is **windowed around the clicked
+button** instead of cut from the top; and if the first (Haiku) answer lacks a title
+or a company, **Sonnet is asked once** with the same input. The retry is not a
+second quota unit, so it costs the user nothing; it costs us only on the pages
+that failed. The capture log shows the model used and whether it escalated. Verified
+under jsdom (hints collected; clicked job kept when the page is far over the cap);
+not yet measured on real messy sites — the next step is to collect failing pages
+from the capture log and see which signal was missing.
+
+Still open for messy pages: a scope that resolves to the wrong container, and
+plain text that is itself capped at 4k from the start of the scope.
+
+### Why a structure is keyed by hostname, and also records the URL
+
+The user asked for the structure to be saved with its associated URL so the next
+visit reuses it instead of calling Claude. The table key stays the **hostname**
+(`site_structures` is unique on `(hostname, version)`, one active row per
+hostname): a job URL is different for every posting, so keying on it would send
+every new posting back to Claude. The page it was learned from is stored in the
+`structure` JSON as `learnedFrom` — origin + path only, query string and fragment
+dropped, because those can carry session or tracking data — and the capture log
+shows it when that structure is used.
+
+### The capture log says which method answered
+
+Every capture writes a `method:` step and a summary whose first line is the
+method: the page's own structured data (JSON-LD); a stored site structure vN
+for the host (no Claude call); Claude (first read of this page); or Claude's
+cached answer for the same page this session (no new call). The summary also
+states whether Claude was called, what happened to the site structure (used /
+learned and stored / proposed selectors did not reproduce the page / none), and
+the save outcome.
+
+### The snapshot at the moment of applying
+
+The user's rule: the page is captured at the instant Apply is clicked (scope
+HTML, visible text, page hints, JSON-LD — synchronously, before the click's own
+navigation runs), and that snapshot is what gets read, even if the page reloads,
+redirects, or opens the application in a new tab before the user answers. They
+accepted it being less efficient to be sure the capture is never lost. "No"
+deletes the snapshot; "Yes" sends it with the save; closing the tab deletes it;
+it is not offered after 10 minutes.
+
+It is kept in `storage.session`, keyed by tab, not in the background worker's
+memory: MV3 stops an idle worker after about 30 seconds, which silently lost
+the snapshot before. `storage.session` survives that, stays in memory and is
+cleared when the browser closes, so page content is never written to disk. The
+capture log records when a snapshot is kept, restored after a page change, or
+deleted on "No".
+
+### Popups, dialogs and modals
+
+Asked for by the user: snapshot popups too. Three gaps were found and two fixed:
+1. **The popup is the application form; the job is behind it.** When Apply/Submit
+   is clicked inside a popup (a dialog by its semantics, or a large fixed overlay
+   without them), the capture now holds two parts: `data-liber-part="popup"` (with
+   the clicked button) and `data-liber-part="page-behind"` (the first `main` /
+   `article` outside the popup, else the body with the popup cut out). Each part is
+   cleaned on its own budget (13.5k + 10k characters of HTML, 2.4k + 1.6k of text)
+   so neither crowds the other out. Claude is told what the parts mean, and stored
+   selectors run against the same combined capture.
+2. **Popups built as web components (shadow DOM).** At document level a click
+   inside a shadow root is retargeted to the host, so it was not recognised as an
+   Apply click at all, and `cloneNode` skips shadow content. The click handler now
+   uses `event.composedPath()` to find the real control, scope lookups walk up
+   through shadow hosts, and the capture inlines open shadow roots
+   (`<div data-liber-shadow>`). Closed shadow roots stay unreachable to any
+   extension.
+3. **Popups inside iframes (embedded application forms) — not done.** The content
+   script runs only in the top frame. Running it in every frame (`all_frames`)
+   would catch them, but the prompt would then appear inside the iframe, and a
+   cross-origin frame cannot see the job details on the page around it. A decision
+   for later.
+
+Also: `div`s with `role="button"` (common in popups) now count as clickable.
+Verified under jsdom (modal form + job behind it, a shadow-DOM popup, a
+`role="button"` submit); the overlay-without-semantics path needs layout and was
+not testable there.
+
+### When there is no job to read
+
+Some pages have no structure to learn from (a newsletter "Submit", an empty modal,
+a site with no usable markup). Two places catch that, both without saving an
+"Unknown title / Unknown company" row:
+- **Before asking** (client only, nothing sent): no JSON-LD and under 60
+  characters of text around the click → the prompt is replaced by "No job found
+  here — try applying from the job's own page."
+- **After extraction**: if none of JSON-LD, a stored structure or Claude produced a
+  job title or a company (including Claude's free limit being used up), nothing is
+  saved and the result is the new `nothing-found` outcome with the same message.
+  The capture log records why (Claude's state and the structure's).
+
+### The save prompt
+
+A card (440px wide) at the top centre of the page, built inside a shadow root
+with `!important` host styles so the site's own CSS can't move or hide it. Every
+Apply click makes a **new** prompt: any popup already showing (whatever phase)
+fades out while the new one fades in. A save that finishes while a newer prompt
+is open does not replace it. Note for testing: a content script already running
+in an open tab keeps the old code after the extension is reloaded — refresh the
+page, or the old popup (it was once bottom-right) is what you will see.
+
+The floating capture-log button (`src/dashboard/captureLog.ts`, bottom-right of the
+full dashboard) shows the rolling log in `storage.session`: what was captured,
+which source answered, whether Claude was called, and the save outcome. It is on
+by default for unpacked installs; Settings → Developer toggles it. (An earlier
+version injected it into every web page; it moved to the dashboard so nothing
+is added to pages the user visits.)
+
+## Where job data lives: local-first, Supabase only with Cloud Sync
+
+With Cloud Sync **off** nothing about a job or a job profile is sent to
+Supabase. `storage.ts` applies saves, edits, deletes and new profiles to
+`browser.storage.local` and queues them (`liber_pending_creates`,
+`liber_pending_updates`, `liber_pending_deletes`, `liber_local_profiles`). With
+sync **on**, saves go straight to `record-save` (which enforces the free limit
+and dedups), and `flushPendingUpdates()` pushes the rest in batches: on
+dashboard load, every minute, and when the page is hidden. Order: profiles →
+new jobs (with their original date) → deletes → edits.
+
+Because nothing reaches the server to enforce them while sync is off, the free
+limits are applied locally too: 10 saves ever (`FREE_JOB_LIMIT`, the same
+lifetime count as the server's `usage.saves_used`, so deleting never frees a
+slot) and no extra profiles (`FREE_EXTRA_JOB_PROFILES = 0`). `isPaid()` caches its
+last answer so a paid user offline isn't treated as free.
+
+**Delete is a real delete.** The bin hides the job and starts a 10s undo window
+(the toast shows 6s). After that the next flush removes it from the device and,
+if it exists in Supabase, runs `DELETE FROM jobs WHERE id = …` from the client.
+No Edge Function is needed: `jobs_delete_own` (RLS) lets an authenticated user
+delete their own rows, guests included. A job that was never uploaded just
+disappears locally. If sync is off, a delete of a job that *is* in Supabase waits
+in the queue and is applied the next time sync is on.
+
+**Turning sync on** uploads the queued profiles and jobs, then adopts the
+account's own profile if this device's isn't among them
+(`adoptAccountJobProfile`). Jobs the free cap refuses stay on the device only.
+
+**Local data is per account** (`src/shared/accountStore.ts`). Every per-account
+key (jobs, job profiles, queued uploads, sync setting, paid cache) is stored as
+`<key>:<user id>`. Logging out sends the user to the welcome page as a new guest —
+a new user id — so the previous account's data is hidden, not deleted, and returns
+if that account logs in on this device again. This was the user's call over
+clearing data on logout: guests can't sync and only real accounts can log in, so
+hiding is enough, and nothing saved only on this device is lost. It also keeps one
+account's queued uploads from being sent under another. A guest who signs up keeps
+the same id (in-place upgrade), so their data carries over. The user id is read
+from the stored session on every access, not cached, so the background worker
+never keeps writing under an account a page has logged out of. Data written
+before this change is moved under whoever is signed in, once. Delete account
+removes only that account's keys. App pages require a display name (read from
+the local session); without one — a fresh guest, or right after logout — they send
+the user to the welcome page.
+
+**Sync conflicts (the user's decision).** Every time Cloud Sync is turned on,
+this device is compared with the cloud. Jobs that exist on only one side are
+simply merged. The same job (same id) with different content on each side
+(status, notes, title, company, location, URL) is a conflict, and the user is
+asked which version wins: *Keep this device's version* (queued as patches and
+pushed up), *Keep the cloud version* (replaces the local copies), or Cancel
+(sync stays off). There is no base version, so we cannot tell which side
+changed — any difference is treated as a conflict, and the granularity is the
+whole job, not per field. While sync is off, duplicate detection reads only the
+local data (the user's call); the server's own duplicate check applies only to
+the sync-on save path and to the upload after sync is turned on.
+
+**A real delete.** The bin used to set `deleted = true`. It now removes the row:
+the job is hidden at once with a 10s undo window (the toast shows 6s), then the
+next flush deletes it from the device and, if it exists remotely, runs
+`DELETE FROM jobs WHERE id = …` from the client. There is no delete Edge
+Function because none is needed: `jobs_delete_own` (RLS) lets any authenticated
+user, guests included, delete their own rows — confirmed against the live
+project with a throwaway user. Free-plan saves are a *lifetime* count on the
+server (`usage.saves_used`), so deleting never frees a slot.
+
+## Accounts: a guest is upgraded in place
+
+Everyone starts as an anonymous (guest) Supabase user. When they sign up on the
+same device, the guest is **upgraded in place** with `auth.updateUser({ email,
+password })` — same user id, so their jobs and profiles carry over and no
+orphaned guest account is left behind.
+
+The user's first proposal was to *delete* the guest after sign-up, matching it by
+IP address and display name. The recommendation was the in-place upgrade instead
+and the user chose it: an IP + name match can hit someone else's guest (shared
+networks, common names) and the deletion cannot be undone, whereas the upgrade
+needs no matching at all. `signUp()` (a brand-new user) remains only as the
+fallback when there is no guest session. Guests orphaned by sign-ups made before
+this change are not cleaned up.
+
+**Email confirmation is switched off** in the Supabase project (the user's
+call, "to remove extra friction"), so the upgrade completes immediately. If it is
+turned back on, `is_anonymous` stays true until the emailed link is opened and the
+sign-up page says so instead of redirecting. Cost of turning it off: an email
+typo makes an account nobody can recover by password reset (a "confirm email"
+field would cover that), and anyone can register any address.
+
+**First run.** The welcome page asks for a name and an optional role. The name is
+the display name (editable later in Settings); the role renames the local default
+job profile (same id), so it *is* the user's first job profile; the sign-up page
+asks for a display name and prefills it. "Onboarded" is a stored flag
+(`liber_onboarded`) rather than "name and role both filled in", because the role
+is optional. **Delete account** (`delete-account`) shows a generic "Something went
+wrong. Please try again." on any failure, by request; the cleanup after a
+successful delete tolerates a failing sign-out.
+
+## Plans and limits
+
+Free: 10 saves ever, one job profile (the default one every account starts with,
+so `FREE_EXTRA_JOB_PROFILES = 0` extra), 10 automatic captures. Premium, £3.99
+one-time (the price is configured in Stripe, `STRIPE_PRICE_ID`; the Plan tab only
+displays it): no limits. The limits are enforced by DB triggers
+(`enforce_job_limit` via `consume_quota`, `enforce_profile_limit`) and
+`extract-job-fields` (`consume_quota('ai', 10)`), and mirrored in the client
+(`FREE_JOB_LIMIT`, `FREE_EXTRA_JOB_PROFILES`) because with sync off nothing
+reaches the server to enforce them. `isPaid()` caches its last answer so a paid
+user offline is not treated as free. **Parked:** the restore-code UI (entering or
+showing a code to recover Premium after clearing browser data) is commented out in
+`settings.html`/`settings.ts`; `startCheckout` still stores the code it is given
+and the `redeem-restore-code` function is deployed.
+
+## Backend: functions, database facts, and how it is operated
+
+| Function | Purpose |
+|---|---|
+| `record-save` | Saves a job (+ its profile) with dedup and the free limit; takes an optional original `dateApplied` |
+| `update-job` | Edits a job (batched from the client) |
+| `create-job-profile` | Creates/renames a profile (upsert on id) |
+| `delete-account` | Deletes jobs, profiles and the auth user |
+| `extract-job-fields` | Claude reads the cleaned HTML → fields + proposed selectors |
+| `site-structure` | `learn` / `report` on the shared `site_structures` table |
+| `create-checkout-session`, `stripe-webhook`, `redeem-restore-code` | Premium purchase and recovery |
+
+Database facts (read from the live project): jobs/job_profiles have RLS for
+select/delete own rows; insert/update additionally need `is_permanent_user()`,
+which is why guests write through service-role functions. `site_structures` is
+readable by any authenticated user and writable only by service-role.
+
+**Operating it.** Until 11 Nov 2026 none of these functions were deployed to the
+project — every call returned 404 `NOT_FOUND`, found by probing each function
+with the anon key (a made-up function name returns the identical response).
+Deploy with `npx supabase functions deploy <names> --remote=<ref> --yes` (the CLI
+refuses hosted mutations from an agent run without `--yes`, which should only be
+passed after the user has said yes). Inspect the schema read-only with
+`npx supabase db query --remote=<ref> --read-only "<sql>"`. To test a function
+end to end, sign in a throwaway anonymous user (`POST /auth/v1/signup`), call it,
+then call `delete-account` to clean up. Secrets: `LIBER_LLM_API` is set; the
+Stripe ones (`STRIPE_API_KEY`, `STRIPE_PRICE_ID`, `STRIPE_SUCCESS_URL`,
+`STRIPE_CANCEL_URL`, `STRIPE_WEBHOOK_SIGNING_SECRET`) are not yet, so checkout and
+the webhook return 500 until they are.

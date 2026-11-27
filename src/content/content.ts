@@ -19,8 +19,8 @@
 // Those selectors are stored per hostname (the shared site_structures table)
 // so a later visit can be read straight from the DOM with no Claude call —
 // background.js asks this script to run them (LIBER_RUN_SELECTORS) against
-// the captured HTML. A floating log button (dev installs, or when switched on
-// in Settings) shows what each capture did.
+// the captured HTML. Every step is logged (LIBER_LOG / background.ts); the
+// dashboard's capture log button shows them.
 
 interface JobFieldSnapshot {
   jobTitle: string;
@@ -29,14 +29,20 @@ interface JobFieldSnapshot {
 }
 
 (function () {
-  // Trigger words: starting an application ("Apply"/"Submit") or continuing
-  // one ("Next"/"Continue"/"Review"). Word-boundary match on root words (not
-  // a phrase list) so new phrasings work without a list edit; `\b` avoids
-  // false hits inside "resubmit"/"submitted". Runs on every page
-  // (`<all_urls>`), so a "Submit"/"Continue" button on an unrelated page
-  // matches too — harmless, since nothing extractable near it just produces
-  // an empty consent prompt the user declines.
-  const TRIGGER_PATTERN = /\b(apply|submit|next|continue|review)\b/i;
+  // Trigger words: applying ("Apply", "Easy Apply", "Apply now") or submitting
+  // ("Submit", "Submit application"), plus the ways sites phrase the same
+  // thing: "Send (my/your) application / CV / resume" and "Finish / complete /
+  // finalise application". "Next", "Continue" and "Review" deliberately do NOT
+  // trigger: they sit in the middle of wizards and on unrelated pages, and the
+  // user only wants the prompt for the apply/submit action itself.
+  // Word-boundary matching: `\b` avoids hits inside "applied"/"resubmit".
+  const TRIGGER_PATTERN =
+    /\b(apply|submit)\b|\bsend\s+(?:in\s+)?(?:my\s+|your\s+|an?\s+|the\s+)?(?:application|cv|resume|résumé)\b|\b(?:finish|finalise|finalize|complete)\s+(?:my\s+|your\s+|the\s+)?application\b/i;
+
+  // Buttons that contain a trigger word but aren't a job application: search
+  // filters, coupons, form changes, feedback. Checked after the pattern above.
+  const NOT_A_TRIGGER_PATTERN =
+    /\b(apply|submit)\s+(?:the\s+|a\s+|an\s+|your\s+|my\s+)?(?:filters?|changes?|coupon|code|promo|discount|settings|feedback|review|comment|search|query|payment|vote|report)\b/i;
 
   // Synonym hints for counting visible job titles (see countVisibleJobTitles).
   const JOB_TITLE_HINTS = {
@@ -57,7 +63,6 @@ interface JobFieldSnapshot {
   // the dashboard's activity log shows it even without devtools open.
   function logStep(step: string, detail: unknown = null): void {
     console.log(`Liber: ${step}`, detail || {});
-    markLogActivity();
     browser.runtime
       .sendMessage({ type: "LIBER_LOG", url: location.href, step, detail: detail ?? null })
       .catch(() => {});
@@ -78,10 +83,22 @@ interface JobFieldSnapshot {
     ).trim();
   }
 
+  // Anything a user clicks to apply: real buttons and links, and the
+  // div-as-button controls popups often use.
+  const CLICKABLE_SELECTOR = "button, a, input[type='submit'], [role='button']";
+
+  function clickedControl(event: Event): Element | null {
+    for (const node of event.composedPath()) {
+      if (node === document) break;
+      if (node instanceof Element && node.matches(CLICKABLE_SELECTOR)) return node;
+    }
+    return null;
+  }
+
   function isTrigger(el: Element | null): boolean {
     if (!el) return false;
     const text = getClickableText(el);
-    return !!text && TRIGGER_PATTERN.test(text);
+    return !!text && TRIGGER_PATTERN.test(text) && !NOT_A_TRIGGER_PATTERN.test(text);
   }
 
   function describeEl(el: Element) {
@@ -145,6 +162,28 @@ interface JobFieldSnapshot {
 
   const DIALOG_SELECTOR = '[role="dialog"], [aria-modal="true"], dialog';
 
+  // --- Shadow DOM ---------------------------------------------------------
+  // Popups built as web components live in shadow roots. closest() and
+  // parentElement stop at a shadow root, so these walk up through the host as
+  // well. Only open shadow roots are reachable; closed ones are invisible to
+  // any extension.
+
+  function composedParent(el: Element): Element | null {
+    if (el.parentElement) return el.parentElement;
+    const root = el.getRootNode();
+    return root instanceof ShadowRoot ? root.host : null;
+  }
+
+  function closestComposed(el: Element, selector: string): Element | null {
+    for (let node: Element | null = el; node; ) {
+      const hit = node.closest(selector);
+      if (hit) return hit;
+      const root = node.getRootNode();
+      node = root instanceof ShadowRoot ? root.host : null;
+    }
+    return null;
+  }
+
   // Fallback for modals with no ARIA semantics: a fixed/absolute,
   // high-z-index element covering a large chunk of the viewport. Same
   // accepted false-positive risk as isVisible() (a large promo banner could
@@ -182,8 +221,8 @@ interface JobFieldSnapshot {
   // (proximity to the click), not just the nearest landmark anywhere.
   function resolveSingleJobScope(clickedEl: Element): Element {
     return (
-      clickedEl.closest(DIALOG_SELECTOR) ||
-      clickedEl.closest('form, main, [role="main"], article') ||
+      closestComposed(clickedEl, DIALOG_SELECTOR) ||
+      closestComposed(clickedEl, 'form, main, [role="main"], article') ||
       resolvePageScope()
     );
   }
@@ -206,11 +245,11 @@ interface JobFieldSnapshot {
   // MIN_CARD_TEXT_LENGTH gate skips the Apply button's own thin wrapper,
   // which is nearly always structurally identical across every card.
   function findRepeatedCardAncestor(clickedEl: Element): Element | null {
-    let node = clickedEl.parentElement;
+    let node = composedParent(clickedEl);
     for (
       let depth = 0;
       node && node !== document.body && depth < MAX_REPEAT_WALK_DEPTH;
-      depth++, node = node.parentElement
+      depth++, node = composedParent(node)
     ) {
       if ((node.textContent || "").trim().length < MIN_CARD_TEXT_LENGTH) continue;
       const siblings = node.parentElement
@@ -227,10 +266,10 @@ interface JobFieldSnapshot {
   function resolveMultiJobScope(clickedEl: Element): Element {
     return (
       findRepeatedCardAncestor(clickedEl) ||
-      clickedEl.closest("article") ||
-      clickedEl.closest("li") ||
-      clickedEl.closest('[role="listitem"]') ||
-      clickedEl.closest("[data-job-id]") ||
+      closestComposed(clickedEl, "article") ||
+      closestComposed(clickedEl, "li") ||
+      closestComposed(clickedEl, '[role="listitem"]') ||
+      closestComposed(clickedEl, "[data-job-id]") ||
       resolvePageScope()
     );
   }
@@ -262,6 +301,34 @@ interface JobFieldSnapshot {
     return text;
   }
 
+  // --- Page hints ---------------------------------------------------------------
+  // Title/og/h1 text: reliable even when the markup is a mess, and the header
+  // that usually holds the company is stripped from the captured HTML.
+
+  interface PageHints {
+    title: string;
+    ogTitle: string;
+    ogSiteName: string;
+    description: string;
+    headings: string[];
+  }
+
+  function collectPageHints(): PageHints {
+    const meta = (selector: string, max: number): string =>
+      (document.querySelector<HTMLMetaElement>(selector)?.content || "").replace(/\s+/g, " ").trim().slice(0, max);
+    const headings = Array.from(document.querySelectorAll("h1"))
+      .map((h) => (h.textContent || "").replace(/\s+/g, " ").trim().slice(0, 150))
+      .filter(Boolean)
+      .slice(0, 3);
+    return {
+      title: (document.title || "").replace(/\s+/g, " ").trim().slice(0, 200),
+      ogTitle: meta('meta[property="og:title"]', 200),
+      ogSiteName: meta('meta[property="og:site_name"]', 100),
+      description: meta('meta[property="og:description"], meta[name="description"]', 300),
+      headings,
+    };
+  }
+
   // --- Cleaned HTML for Claude / selectors ------------------------------------
 
   const HTML_MAX_LENGTH = 24000;
@@ -276,9 +343,51 @@ interface JobFieldSnapshot {
   // elements, and every attribute that isn't a plausible selector hook
   // (id/class/data-*/itemprop/role/aria-label). Selectors learned from this
   // are run against this same cleaned shape later, so it must stay stable.
-  function collectScopeHtml(scope: Element): string {
-    const clone = scope.cloneNode(true) as Element;
-    clone.querySelectorAll(HTML_DROP_SELECTOR).forEach((el) => el.remove());
+  // The Apply button the user clicked is tagged in the captured HTML, so what
+  // reads that HTML later (Claude on the first visit, stored selectors after)
+  // can tell which job on a multi-job page the click belonged to.
+  const CLICK_MARK = "data-liber-clicked";
+
+  const EXCLUDE_MARK = "data-liber-exclude";
+
+  // A deep copy that also inlines open shadow roots (cloneNode(true) skips
+  // them), each wrapped in <div data-liber-shadow> so it reads as one tree.
+  function cloneComposed(src: Element): Element {
+    const copy = src.cloneNode(false) as Element;
+    const shadow = (src as HTMLElement).shadowRoot;
+    if (shadow) {
+      const wrap = document.createElement("div");
+      wrap.setAttribute("data-liber-shadow", "");
+      shadow.childNodes.forEach((child) => wrap.appendChild(cloneNodeComposed(child)));
+      copy.appendChild(wrap);
+    }
+    src.childNodes.forEach((child) => copy.appendChild(cloneNodeComposed(child)));
+    return copy;
+  }
+
+  function cloneNodeComposed(node: Node): Node {
+    return node instanceof Element ? cloneComposed(node) : node.cloneNode(false);
+  }
+
+  function collectScopeHtml(
+    scope: Element,
+    clicked: Element | null = null,
+    max = HTML_MAX_LENGTH,
+    exclude: Element | null = null,
+  ): string {
+    // Tagged on the live elements just long enough to be copied by the clone.
+    clicked?.setAttribute(CLICK_MARK, "1");
+    exclude?.setAttribute(EXCLUDE_MARK, "");
+    const clone = cloneComposed(scope);
+    clicked?.removeAttribute(CLICK_MARK);
+    exclude?.removeAttribute(EXCLUDE_MARK);
+    clone.querySelectorAll(`[${EXCLUDE_MARK}]`).forEach((el) => el.remove());
+
+    // The clicked element itself survives cleaning even if it is a <button>
+    // or has no text, since it is the anchor everything else is measured from.
+    clone.querySelectorAll(HTML_DROP_SELECTOR).forEach((el) => {
+      if (!el.hasAttribute(CLICK_MARK)) el.remove();
+    });
 
     const comments: Node[] = [];
     const walker = document.createTreeWalker(clone, NodeFilter.SHOW_COMMENT);
@@ -288,7 +397,7 @@ interface JobFieldSnapshot {
     // Deepest first, so a wrapper emptied by removing its empty children goes too.
     const all = Array.from(clone.querySelectorAll("*")).reverse();
     for (const el of all) {
-      if (!(el.textContent || "").trim()) {
+      if (!el.hasAttribute(CLICK_MARK) && !(el.textContent || "").trim()) {
         el.remove();
         continue;
       }
@@ -298,18 +407,69 @@ interface JobFieldSnapshot {
       }
     }
 
-    return clone.outerHTML.replace(/>\s+</g, "><").replace(/\s{2,}/g, " ").trim().slice(0, HTML_MAX_LENGTH);
+    return windowAroundClick(
+      clone.outerHTML.replace(/>\s+</g, "><").replace(/\s{2,}/g, " ").trim(),
+      max,
+    );
+  }
+
+  // Over the cap, keep the stretch around the clicked button rather than the
+  // top of the scope: on a wide scope (a long listing page) the job that was
+  // clicked can be well past the first 24k characters.
+  function windowAroundClick(html: string, max: number): string {
+    if (html.length <= max) return html;
+    const at = html.indexOf(CLICK_MARK);
+    if (at < 0) return html.slice(0, max);
+    const start = Math.max(0, Math.min(at - Math.floor(max * 0.7), html.length - max));
+    return html.slice(start, start + max);
   }
 
   // Runs selectors against captured HTML (never the live page, which may have
   // moved on since the click). textContent, not innerText: a parsed document
   // has no layout.
+  // Steps from `a` up to the nearest shared ancestor and down to `b`.
+  function treeDistance(a: Node, b: Node): number {
+    const up = new Map<Node, number>();
+    let steps = 0;
+    for (let n: Node | null = a; n; n = n.parentNode) up.set(n, steps++);
+    steps = 0;
+    for (let n: Node | null = b; n; n = n.parentNode, steps++) {
+      const k = up.get(n);
+      if (k !== undefined) return k + steps;
+    }
+    return Infinity;
+  }
+
+  // A stored selector like ".job-title" matches every job on a multi-job page.
+  // Deterministically pick the match closest to the Apply button that was
+  // clicked (fewest DOM steps apart; on a tie, the one that comes before the
+  // button, since a card's title precedes its Apply button) — no Claude call,
+  // and the same answer every time. With one match, or no marked click, it is
+  // simply the first match.
+  function nearestMatch(doc: Document, selector: string): Element | null {
+    const matches = Array.from(doc.querySelectorAll(selector));
+    const anchor = doc.querySelector(`[${CLICK_MARK}]`);
+    if (matches.length <= 1 || !anchor) return matches[0] ?? null;
+
+    let best = matches[0]!;
+    let bestScore = Infinity;
+    for (const match of matches) {
+      const precedes = !!(anchor.compareDocumentPosition(match) & Node.DOCUMENT_POSITION_PRECEDING);
+      const score = treeDistance(anchor, match) * 2 + (precedes ? 0 : 1);
+      if (score < bestScore) {
+        best = match;
+        bestScore = score;
+      }
+    }
+    return best;
+  }
+
   function readFieldsFromHtml(html: string, selectors: JobFieldSnapshot): JobFieldSnapshot {
     const doc = new DOMParser().parseFromString(html, "text/html");
     const read = (selector: string): string => {
       if (!selector) return "";
       try {
-        const el = doc.querySelector(selector);
+        const el = nearestMatch(doc, selector);
         return (el?.textContent || "").replace(/\s+/g, " ").trim().slice(0, JOB_TITLE_MAX_LENGTH);
       } catch {
         return ""; // a selector the browser rejects reads as "not found"
@@ -319,6 +479,61 @@ interface JobFieldSnapshot {
       jobTitle: read(selectors.jobTitle),
       company: read(selectors.company),
       location: read(selectors.location),
+    };
+  }
+
+  // --- Popups: capture the popup and the page behind it ----------------------
+  // An Apply click inside a popup (dialog, modal, overlay) usually happens in
+  // the application form, while the job's title and company sit on the page
+  // behind it. So both are captured: the popup (with the clicked button) and
+  // the main content behind it, each cleaned, under its own budget.
+
+  const POPUP_HTML_MAX = 13500;
+  const PAGE_BEHIND_HTML_MAX = 10000;
+  const POPUP_TEXT_MAX = 2400;
+  const PAGE_BEHIND_TEXT_MAX = 1600;
+
+  // The popup the clicked element sits in, if any: a dialog by its semantics,
+  // or a large fixed overlay without them (findOverlayFallback).
+  function popupAround(clicked: Element): Element | null {
+    const dialog = closestComposed(clicked, DIALOG_SELECTOR);
+    if (dialog) return dialog;
+    const overlay = findOverlayFallback();
+    return overlay && overlay.contains(clicked) ? overlay : null;
+  }
+
+  // The page content behind a popup: the first main landmark that isn't the
+  // popup or inside it, else the whole body with the popup cut out.
+  function pageBehind(popup: Element): Element {
+    for (const el of document.querySelectorAll('main, [role="main"], article')) {
+      if (!popup.contains(el) && !el.contains(popup)) return el;
+    }
+    return document.body;
+  }
+
+  interface Capture {
+    scopeText: string;
+    scopeHtml: string;
+    popup: boolean;
+  }
+
+  function capture(scope: Element, clicked: Element): Capture {
+    const popup = popupAround(clicked);
+    if (!popup) {
+      return { scopeText: collectPageText(scope), scopeHtml: collectScopeHtml(scope, clicked), popup: false };
+    }
+    const behind = pageBehind(popup);
+    const popupScope = popup.contains(scope) ? scope : popup;
+    const popupHtml = collectScopeHtml(popupScope, clicked, POPUP_HTML_MAX);
+    const behindHtml = collectScopeHtml(behind, null, PAGE_BEHIND_HTML_MAX, popup);
+    const popupText = collectPageText(popupScope).slice(0, POPUP_TEXT_MAX);
+    const behindText = collectPageText(behind).slice(0, PAGE_BEHIND_TEXT_MAX);
+    return {
+      scopeHtml:
+        `<div data-liber-part="popup">${popupHtml}</div>` +
+        `<div data-liber-part="page-behind">${behindHtml}</div>`,
+      scopeText: behindText ? `${popupText}\n— Page behind the popup —\n${behindText}` : popupText,
+      popup: true,
     };
   }
 
@@ -382,28 +597,84 @@ interface JobFieldSnapshot {
   }
 
   // --- Consent / working / result popup -----------------------------------
-  // Unobtrusive, fixed-position, built fresh per phase. No AI/model wording
-  // anywhere — matches the product's no-AI-wording principle.
+  // Fixed at the top centre of the page, large, and built inside a shadow
+  // root so the page's own CSS can't restyle or hide it. Every Apply click
+  // gets a *new* popup: any popup already showing fades out as the new one
+  // fades in. No AI/model wording anywhere — matches the product's no-AI-wording
+  // principle.
 
   const POPUP_ID = "liber-extraction-popup";
+  const POPUP_FADE_MS = 220;
 
-  function ensurePopupEl(): HTMLElement {
-    let el = document.getElementById(POPUP_ID);
-    if (!el) {
-      el = document.createElement("div");
-      el.id = POPUP_ID;
-      el.style.cssText =
-        "position:fixed; bottom:16px; right:16px; z-index:2147483647; " +
-        'background:#fff; color:#1f1f1f; font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; ' +
-        "padding:14px 16px; border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,0.22); " +
-        "width:260px;";
-      document.body.appendChild(el);
-    }
-    return el;
+  let hideTimer: ReturnType<typeof setTimeout> | undefined;
+
+  // Host properties are set `!important` so a page rule can't move or hide it.
+  function setHostStyle(host: HTMLElement, props: Record<string, string>): void {
+    for (const [name, value] of Object.entries(props)) host.style.setProperty(name, value, "important");
+  }
+
+  // The card inside the current popup's shadow root — what the render
+  // functions fill in. null when no popup is showing.
+  function currentPopupCard(): HTMLElement | null {
+    const host = document.getElementById(POPUP_ID);
+    return (host?.shadowRoot?.firstElementChild as HTMLElement | null) ?? null;
+  }
+
+  function createPopup(): HTMLElement {
+    const host = document.createElement("div");
+    host.id = POPUP_ID;
+    setHostStyle(host, {
+      all: "initial",
+      display: "block",
+      position: "fixed",
+      top: "24px",
+      left: "50%",
+      transform: "translateX(-50%)",
+      "z-index": "2147483647",
+      width: "440px",
+      "max-width": "calc(100vw - 32px)",
+      opacity: "0",
+      transition: `opacity ${POPUP_FADE_MS}ms ease`,
+    });
+
+    const card = document.createElement("div");
+    card.style.cssText =
+      "box-sizing:border-box; width:100%; background:#fff; color:#1f1f1f; " +
+      'font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; ' +
+      "padding:22px 26px; border-radius:16px; box-shadow:0 10px 32px rgba(0,0,0,0.28);";
+    host.attachShadow({ mode: "open" }).appendChild(card);
+    document.body.appendChild(host);
+
+    requestAnimationFrame(() => setHostStyle(host, { opacity: "1" }));
+    return card;
+  }
+
+  // Fades the current popup out and removes it. Its id is dropped at once so a
+  // popup created right after isn't mistaken for it.
+  function fadeOutCurrentPopup(): void {
+    clearTimeout(hideTimer);
+    const host = document.getElementById(POPUP_ID);
+    if (!host) return;
+    host.removeAttribute("id");
+    setHostStyle(host, { opacity: "0", "pointer-events": "none" });
+    setTimeout(() => host.remove(), POPUP_FADE_MS + 40);
+  }
+
+  // A brand-new popup for a new Apply click: the old one (whatever phase it
+  // was in) fades out while this one fades in.
+  function freshPopupCard(): HTMLElement {
+    fadeOutCurrentPopup();
+    return createPopup();
+  }
+
+  // The popup already showing, or a new one if there is none — for updates
+  // within one flow (consent → working → result).
+  function ensurePopupCard(): HTMLElement {
+    return currentPopupCard() ?? createPopup();
   }
 
   function hidePopup(): void {
-    document.getElementById(POPUP_ID)?.remove();
+    fadeOutCurrentPopup();
   }
 
   interface ActionButton {
@@ -414,14 +685,14 @@ interface JobFieldSnapshot {
 
   function buildActionsRow(buttons: ActionButton[]): HTMLElement {
     const actions = document.createElement("div");
-    actions.style.cssText = "display:flex; gap:8px; margin-top:10px;";
+    actions.style.cssText = "display:flex; gap:12px; margin-top:16px;";
     buttons.forEach(({ label, primary, onClick }) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.textContent = label;
       btn.style.cssText = primary
-        ? "flex:1; padding:7px 0; border:none; border-radius:12px; background:#3b82f6; color:#fff; font:inherit; font-weight:600; cursor:pointer;"
-        : "flex:1; padding:7px 0; border:1px solid #d9d9d9; border-radius:12px; background:transparent; color:#1f1f1f; font:inherit; cursor:pointer;";
+        ? "flex:1; padding:12px 0; border:none; border-radius:12px; background:#3b82f6; color:#fff; font:inherit; font-weight:600; cursor:pointer;"
+        : "flex:1; padding:12px 0; border:1px solid #d9d9d9; border-radius:12px; background:transparent; color:#1f1f1f; font:inherit; cursor:pointer;";
       btn.addEventListener("click", onClick);
       actions.appendChild(btn);
     });
@@ -430,11 +701,10 @@ interface JobFieldSnapshot {
 
   // Shown immediately on a trigger click — nothing extracted or saved yet.
   function renderConsentPopup({ onYes, onNo }: { onYes: () => void; onNo: () => void }): void {
-    const el = ensurePopupEl();
-    el.innerHTML = "";
+    const el = freshPopupCard();
 
     const title = document.createElement("div");
-    title.style.cssText = "font-weight:600; margin-bottom:10px;";
+    title.style.cssText = "font-weight:600; font-size:19px;";
     title.textContent = "Save this job to your tracker?";
     el.appendChild(title);
 
@@ -447,41 +717,69 @@ interface JobFieldSnapshot {
   }
 
   function renderWorkingPopup(progress: number): void {
-    const el = ensurePopupEl();
+    const el = ensurePopupCard();
     el.innerHTML = "";
 
     const label = document.createElement("div");
-    label.style.cssText = "font-weight:600; margin-bottom:8px;";
+    label.style.cssText = "font-weight:600; font-size:19px; margin-bottom:14px;";
     label.textContent = "Liber is doing some work…";
     el.appendChild(label);
 
     const track = document.createElement("div");
-    track.style.cssText = "height:4px; background:#e5e5e5; border-radius:2px; overflow:hidden;";
+    track.style.cssText = "height:6px; background:#e5e5e5; border-radius:3px; overflow:hidden;";
     const fill = document.createElement("div");
     fill.style.cssText = `height:100%; width:${progress || 0}%; background:#3b82f6; transition:width .2s ease;`;
     track.appendChild(fill);
     el.appendChild(track);
   }
 
-  type Outcome = "saved" | "duplicate" | "limit" | "failed";
+  type Outcome = "saved" | "duplicate" | "limit" | "failed" | "nothing-found";
 
   const OUTCOME_TEXT: Record<Outcome, string> = {
     saved: "Job saved. You can check it in your table.",
     duplicate: "This job's already in your tracker.",
     limit: "You've hit the free limit — unlock Liber to keep saving.",
     failed: "Couldn't save this one — try again shortly.",
+    "nothing-found": "Couldn't find a job on this page. Try applying from the job's own page.",
   };
 
   function renderResultPopup(outcome: Outcome): void {
-    const el = ensurePopupEl();
+    const el = ensurePopupCard();
     el.innerHTML = "";
 
     const label = document.createElement("div");
+    label.style.cssText = "font-weight:600; font-size:17px;";
     label.textContent = OUTCOME_TEXT[outcome] || OUTCOME_TEXT.failed;
     el.appendChild(label);
 
-    setTimeout(hidePopup, 4000);
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(hidePopup, 4000);
   }
+
+  // Shown instead of the consent prompt when there is clearly no job to read
+  // near the click (a newsletter "Submit", an empty modal) — nothing is asked
+  // or sent.
+  function renderNoJobPopup(): void {
+    const el = freshPopupCard();
+
+    const title = document.createElement("div");
+    title.style.cssText = "font-weight:600; font-size:19px;";
+    title.textContent = "No job found here";
+    el.appendChild(title);
+
+    const hint = document.createElement("div");
+    hint.style.cssText = "margin-top:6px; font-size:15px; color:#555;";
+    hint.textContent = "Try applying from the job's own page.";
+    el.appendChild(hint);
+
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(hidePopup, 5000);
+  }
+
+  // True while a "Save this job?" prompt is on screen waiting for an answer.
+  // A save already in flight can finish while the user is looking at a newer
+  // prompt; its working/result popups are skipped then so they don't replace it.
+  let promptOpen = false;
 
   browser.runtime.onMessage.addListener((message: any) => {
     // background.js asking us to run stored/learned selectors against the
@@ -490,57 +788,48 @@ interface JobFieldSnapshot {
       return Promise.resolve(readFieldsFromHtml(message.scopeHtml || "", message.selectors));
     }
     if (message.type !== "LIBER_EXTRACTION_STATUS") return;
-    markLogActivity();
+    if (promptOpen) return; // a newer prompt is showing — don't replace it
     if (message.phase === "working") {
       renderWorkingPopup(message.progress);
     } else if (message.phase === "done") {
       renderResultPopup(message.outcome);
-      // The one place "yes" unblocks — see awaitingConsentResponse below.
-      awaitingConsentResponse = false;
     }
   });
-
-  // Blocks further trigger clicks while a prompt awaits a response, or an
-  // accepted one is still saving — otherwise a multi-step wizard's later
-  // clicks would re-prompt mid-save. "No" resets instantly; "yes"
-  // deliberately doesn't (only the "done" phase above does), so the whole
-  // save window is covered. Resets on navigation (fresh content-script
-  // instance) — a same-tab SPA route change to a different job can prompt
-  // again once whatever's pending resolves.
-  let awaitingConsentResponse = false;
 
   interface PendingConsent {
     url: string;
     scopeText: string;
     scopeHtml: string;
+    pageHints: PageHints;
     structuredSnapshot: JobFieldSnapshot | null;
   }
 
   // Shows the consent popup — shared by a fresh capture and a prompt resumed
   // from a prior page/tab (see LIBER_CHECK_PENDING_CONSENT below). The
   // {url, scopeText, structuredSnapshot} is already captured by this point.
-  function beginConsentFlow({ url, scopeText, scopeHtml, structuredSnapshot }: PendingConsent): void {
-    awaitingConsentResponse = true;
+  function beginConsentFlow({ url, scopeText, scopeHtml, pageHints, structuredSnapshot }: PendingConsent): void {
+    promptOpen = true;
 
     // Tracked by background.js's pendingConsentByTab so an unanswered prompt
     // can follow a redirect/new tab before the user answers.
     browser.runtime
-      .sendMessage({ type: "LIBER_CONSENT_PENDING", url, scopeText, scopeHtml, structuredSnapshot })
+      .sendMessage({ type: "LIBER_CONSENT_PENDING", url, scopeText, scopeHtml, pageHints, structuredSnapshot })
       .catch(() => {});
 
     renderConsentPopup({
       onYes: () => {
+        promptOpen = false;
         logStep("consent accepted");
         renderWorkingPopup(0);
-        browser.runtime.sendMessage({ type: "LIBER_CONSENT_RESOLVED" }).catch(() => {});
+        browser.runtime.sendMessage({ type: "LIBER_CONSENT_RESOLVED", answer: "yes", url }).catch(() => {});
         browser.runtime
-          .sendMessage({ type: "LIBER_SAVE_REQUESTED", url, scopeText, scopeHtml, structuredSnapshot })
+          .sendMessage({ type: "LIBER_SAVE_REQUESTED", url, scopeText, scopeHtml, pageHints, structuredSnapshot })
           .catch(() => {});
       },
       onNo: () => {
-        awaitingConsentResponse = false;
+        promptOpen = false;
         logStep("consent declined");
-        browser.runtime.sendMessage({ type: "LIBER_CONSENT_RESOLVED" }).catch(() => {});
+        browser.runtime.sendMessage({ type: "LIBER_CONSENT_RESOLVED", answer: "no", url }).catch(() => {});
         hidePopup();
       },
     });
@@ -552,7 +841,7 @@ interface JobFieldSnapshot {
   browser.runtime
     .sendMessage({ type: "LIBER_CHECK_PENDING_CONSENT" })
     .then((pending: PendingConsent | null) => {
-      if (pending && !awaitingConsentResponse) {
+      if (pending && !promptOpen) {
         logStep("resumed pending consent", { url: pending.url });
         beginConsentFlow(pending);
       }
@@ -562,10 +851,11 @@ interface JobFieldSnapshot {
   document.addEventListener(
     "click",
     (event) => {
-      const target = (event.target as Element)?.closest("button, a, input[type='submit']");
+      // The real clicked control, even inside a shadow root (event.target is
+      // retargeted to the shadow host at document level).
+      const target = clickedControl(event);
       if (!target) return;
       if (!isTrigger(target)) return;
-      if (awaitingConsentResponse) return;
 
       // No preventDefault — the native action always proceeds normally.
 
@@ -583,242 +873,35 @@ interface JobFieldSnapshot {
       logStep("scope resolved", { multipleListingsDetected, ...describeEl(scope) });
 
       const rawStructuredSnapshot = collectJobPostingLd();
-      const scopeText = collectPageText(scope);
-      const scopeHtml = collectScopeHtml(scope);
+      const { scopeText, scopeHtml, popup } = capture(scope, target);
+      const pageHints = collectPageHints();
       const url = location.href;
       logStep("captured at trigger click", {
+        popup,
         scopeTextLength: scopeText.length,
         scopeHtmlLength: scopeHtml.length,
         hasStructuredData: hasAnyField(rawStructuredSnapshot),
         scopeText: scopeText || "no snapshot",
       });
 
+      // Nothing to read: no structured data, and next to no text around the
+      // click. Say so instead of asking to save an empty job.
+      const MIN_JOB_TEXT = 60;
+      const nearbyText = scopeText.replace(/\s+/g, " ").trim().length || (scope.textContent || "").replace(/\s+/g, " ").trim().length;
+      if (!hasAnyField(rawStructuredSnapshot) && nearbyText < MIN_JOB_TEXT) {
+        logStep("no job content found near the click", { nearbyText });
+        renderNoJobPopup();
+        return;
+      }
+
       beginConsentFlow({
         url,
         scopeText,
         scopeHtml,
+        pageHints,
         structuredSnapshot: hasAnyField(rawStructuredSnapshot) ? rawStructuredSnapshot : null,
       });
     },
     true, // capture phase — catches it even if the site stops propagation
   );
-
-  // --- Floating capture log --------------------------------------------------
-  // A small button, bottom-left of every page, that opens this tab's capture
-  // log: what was captured, whether Claude was called or a stored site
-  // structure answered instead, and how the save ended. Shown on unpacked
-  // (dev) installs by default, or wherever Settings → Developer turns it on.
-  // Lives in a shadow root so page CSS can't touch it (nor it the page).
-
-  const LOG_BUTTON_FLAG = "liber_show_log_button";
-  const LOG_HOST_ID = "liber-log-host";
-  const LOG_POLL_MS = 1000;
-
-  interface CaptureLogEntry {
-    step: string;
-    detail: unknown;
-    timestamp: number;
-  }
-
-  let logDot: HTMLElement | null = null;
-  let logPanelOpen = false;
-  let logHasNew = false;
-
-  function markLogActivity(): void {
-    if (logPanelOpen) return;
-    logHasNew = true;
-    if (logDot) logDot.hidden = false;
-  }
-
-  async function shouldShowLogButton(): Promise<boolean> {
-    const stored = ((await browser.storage.local.get(LOG_BUTTON_FLAG)) as Record<string, unknown>)[
-      LOG_BUTTON_FLAG
-    ];
-    if (typeof stored === "boolean") return stored;
-    return !("update_url" in browser.runtime.getManifest()); // unpacked = dev install
-  }
-
-  function el(tag: string, css: string, text?: string): HTMLElement {
-    const node = document.createElement(tag);
-    node.style.cssText = css;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  }
-
-  function summarizeCaptures(entries: CaptureLogEntry[]): Record<string, string> | null {
-    const latest = [...entries].reverse().find((e) => e.step === "capture summary");
-    if (!latest || typeof latest.detail !== "object" || !latest.detail) return null;
-    const d = latest.detail as Record<string, unknown>;
-    const text = (v: unknown, fallback = "—") => (v === undefined || v === null || v === "" ? fallback : String(v));
-    return {
-      Site: text(d.hostname),
-      "Read from": text(d.source),
-      "Claude": text(d.claude),
-      "Site structure": text(d.structure),
-      Result: text(d.outcome),
-    };
-  }
-
-  function mountLogButton(): void {
-    if (document.getElementById(LOG_HOST_ID) || !document.body) return;
-
-    const host = document.createElement("div");
-    host.id = LOG_HOST_ID;
-    host.style.cssText = "all:initial; position:fixed; bottom:16px; left:16px; z-index:2147483647;";
-    const root = host.attachShadow({ mode: "open" });
-
-    const style = document.createElement("style");
-    style.textContent = `
-      * { box-sizing: border-box; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
-      .fab { position: relative; width: 42px; height: 42px; border-radius: 50%; border: none; cursor: pointer;
-        background: #1f1f1f; color: #fff; box-shadow: 0 4px 16px rgba(0,0,0,.35); display: grid; place-items: center; }
-      .fab svg { width: 20px; height: 20px; }
-      .dot { position: absolute; top: 2px; right: 2px; width: 10px; height: 10px; border-radius: 50%; background: #3b82f6; border: 2px solid #1f1f1f; }
-      .panel { position: absolute; bottom: 52px; left: 0; width: 380px; max-width: calc(100vw - 32px); max-height: 60vh;
-        display: flex; flex-direction: column; background: #161616; color: #eaeaea; border-radius: 12px;
-        box-shadow: 0 8px 32px rgba(0,0,0,.45); overflow: hidden; }
-      .head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid #2c2c2c; }
-      .head strong { flex: 1; font-size: 13px; }
-      .head button { background: #2a2a2a; color: #eaeaea; border: none; border-radius: 6px; padding: 4px 8px; cursor: pointer; }
-      .summary { padding: 10px 12px; border-bottom: 1px solid #2c2c2c; display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; }
-      .summary dt { color: #8a8a8a; } .summary dd { margin: 0; word-break: break-all; }
-      .empty { padding: 14px 12px; color: #8a8a8a; }
-      .list { overflow: auto; padding: 4px 0; }
-      details { padding: 4px 12px; border-bottom: 1px solid #222; }
-      summary { cursor: pointer; list-style: none; display: flex; gap: 8px; }
-      summary .t { color: #8a8a8a; flex: none; }
-      pre { margin: 6px 0 2px; white-space: pre-wrap; word-break: break-word; color: #b9c4d6; max-height: 160px; overflow: auto; }
-    `;
-    root.appendChild(style);
-
-    const fab = document.createElement("button");
-    fab.className = "fab";
-    fab.type = "button";
-    fab.setAttribute("aria-label", "Liber capture log");
-    fab.innerHTML =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>';
-    logDot = document.createElement("span");
-    logDot.className = "dot";
-    logDot.hidden = !logHasNew;
-    fab.appendChild(logDot);
-    root.appendChild(fab);
-
-    let panel: HTMLElement | null = null;
-    let timer: ReturnType<typeof setInterval> | null = null;
-
-    async function refresh(): Promise<void> {
-      if (!panel) return;
-      const entries: CaptureLogEntry[] =
-        (await browser.runtime.sendMessage({ type: "LIBER_GET_LOGS" }).catch(() => [])) || [];
-      const body = panel.querySelector(".body") as HTMLElement;
-      body.replaceChildren();
-
-      const summary = summarizeCaptures(entries);
-      if (summary) {
-        const dl = document.createElement("dl");
-        dl.className = "summary";
-        for (const [key, value] of Object.entries(summary)) {
-          const dt = document.createElement("dt");
-          dt.textContent = key;
-          const dd = document.createElement("dd");
-          dd.textContent = value;
-          dl.append(dt, dd);
-        }
-        body.appendChild(dl);
-      }
-
-      if (!entries.length) {
-        const empty = document.createElement("div");
-        empty.className = "empty";
-        empty.textContent = "Nothing captured on this tab yet. Click an Apply button to try.";
-        body.appendChild(empty);
-        return;
-      }
-
-      const list = document.createElement("div");
-      list.className = "list";
-      for (const entry of [...entries].reverse()) {
-        const details = document.createElement("details");
-        const sum = document.createElement("summary");
-        const t = document.createElement("span");
-        t.className = "t";
-        t.textContent = new Date(entry.timestamp).toLocaleTimeString();
-        const label = document.createElement("span");
-        label.textContent = entry.step;
-        sum.append(t, label);
-        details.appendChild(sum);
-        if (entry.detail !== null && entry.detail !== undefined) {
-          const pre = document.createElement("pre");
-          pre.textContent = JSON.stringify(entry.detail, null, 2).slice(0, 4000);
-          details.appendChild(pre);
-        }
-        list.appendChild(details);
-      }
-      body.appendChild(list);
-    }
-
-    function closePanel(): void {
-      logPanelOpen = false;
-      if (timer) clearInterval(timer);
-      timer = null;
-      panel?.remove();
-      panel = null;
-    }
-
-    function openPanel(): void {
-      logPanelOpen = true;
-      logHasNew = false;
-      if (logDot) logDot.hidden = true;
-
-      panel = document.createElement("div");
-      panel.className = "panel";
-      const head = document.createElement("div");
-      head.className = "head";
-      const title = document.createElement("strong");
-      title.textContent = "Liber capture log";
-      const clear = document.createElement("button");
-      clear.type = "button";
-      clear.textContent = "Clear";
-      clear.addEventListener("click", async () => {
-        await browser.runtime.sendMessage({ type: "LIBER_CLEAR_LOGS" }).catch(() => {});
-        refresh();
-      });
-      const close = document.createElement("button");
-      close.type = "button";
-      close.textContent = "Close";
-      close.addEventListener("click", closePanel);
-      head.append(title, clear, close);
-      const body = document.createElement("div");
-      body.className = "body";
-      body.style.cssText = "display:flex; flex-direction:column; min-height:0; overflow:auto;";
-      panel.append(head, body);
-      root.appendChild(panel);
-
-      refresh();
-      timer = setInterval(refresh, LOG_POLL_MS);
-    }
-
-    fab.addEventListener("click", () => (panel ? closePanel() : openPanel()));
-    document.body.appendChild(host);
-  }
-
-  function unmountLogButton(): void {
-    document.getElementById(LOG_HOST_ID)?.remove();
-    logDot = null;
-    logPanelOpen = false;
-  }
-
-  async function syncLogButton(): Promise<void> {
-    if (await shouldShowLogButton()) mountLogButton();
-    else unmountLogButton();
-  }
-
-  if (window === window.top) {
-    syncLogButton().catch(() => {});
-    browser.storage.onChanged.addListener(
-      (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
-        if (area === "local" && changes[LOG_BUTTON_FLAG]) syncLogButton().catch(() => {});
-      },
-    );
-  }
 })();

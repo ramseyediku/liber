@@ -19,6 +19,8 @@ export interface SiteStructure {
   hostname: string;
   version: number;
   selectors: FieldSelectors;
+  // The page (origin + path) it was first learned from, when recorded.
+  learnedFrom?: string;
 }
 
 // What a Claude read of a page returns: the fields, the selectors it proposes
@@ -28,6 +30,20 @@ export interface ExtractionResult {
   snapshot: JobFieldSnapshot;
   selectors: FieldSelectors | null;
   claude: "called" | "quota" | "error" | "empty-input";
+  // Which model answered, and whether the first (cheaper) model came back
+  // without a title or company so a stronger one was asked to try again.
+  model?: string;
+  escalated?: boolean;
+}
+
+// Page-level signals that survive even on messy markup: the document title,
+// og: metadata and <h1>s. Often "Job title – Company" in one string.
+export interface PageHints {
+  title: string;
+  ogTitle: string;
+  ogSiteName: string;
+  description: string;
+  headings: string[];
 }
 
 export type JobStatus = "applied" | "interviewing" | "offer" | "rejected" | "withdrawn";

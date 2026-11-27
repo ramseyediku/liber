@@ -49,6 +49,20 @@ function cleanSelectors(raw: unknown): Selectors | null {
   return selectors.jobTitle && selectors.company ? selectors : null;
 }
 
+// The page a structure was learned from (origin + path, no query/fragment) —
+// kept only if it is a web URL on the same hostname.
+function cleanLearnedFrom(value: unknown, hostname: string): string | undefined {
+  if (typeof value !== "string" || value.length > 300) return undefined;
+  try {
+    const u = new URL(value);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return undefined;
+    if (u.hostname.toLowerCase() !== hostname) return undefined;
+    return `${u.origin}${u.pathname}`;
+  } catch {
+    return undefined;
+  }
+}
+
 // The table's own CHECK requires lower-case hostnames.
 function cleanHostname(value: unknown): string {
   if (typeof value !== "string") return "";
@@ -72,6 +86,7 @@ Deno.serve(async (req: Request) => {
   if (body.action === "learn") {
     const selectors = cleanSelectors(body.selectors);
     if (!selectors) return json({ error: "invalid selectors" }, 400);
+    const learnedFrom = cleanLearnedFrom(body.url, hostname);
 
     const { data: latest, error: latestError } = await supabase
       .from("site_structures")
@@ -96,7 +111,7 @@ Deno.serve(async (req: Request) => {
         hostname,
         version: (latest?.version ?? 0) + 1,
         is_active: true,
-        structure: { selectors },
+        structure: { selectors, ...(learnedFrom ? { learnedFrom } : {}) },
         source: "llm",
         last_validated_at: new Date().toISOString(),
       })

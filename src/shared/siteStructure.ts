@@ -4,7 +4,7 @@
 // table is service-role-write-only. A structure only ever holds CSS
 // selectors for a hostname — never page content or anything about the user.
 import { ensureSession, getSupabaseClient } from "./supabaseClient.ts";
-import { sanitizeSelectors } from "./structure.ts";
+import { pageKey, sanitizeSelectors } from "./structure.ts";
 import type { FieldSelectors, SiteStructure } from "./types.ts";
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -35,8 +35,14 @@ export async function getActiveStructure(hostname: string): Promise<SiteStructur
   if (error) throw error;
 
   const selectors = sanitizeSelectors((data as any)?.structure?.selectors);
-  const structure = data && selectors
-    ? { hostname, version: (data as any).version as number, selectors }
+  const learnedFrom = (data as any)?.structure?.learnedFrom;
+  const structure: SiteStructure | null = data && selectors
+    ? {
+        hostname,
+        version: (data as any).version as number,
+        selectors,
+        ...(typeof learnedFrom === "string" ? { learnedFrom } : {}),
+      }
     : null;
   cache.set(hostname, { at: Date.now(), structure });
   return structure;
@@ -46,11 +52,16 @@ export function forgetStructure(hostname: string): void {
   cache.delete(hostname);
 }
 
-// Saves (and activates) a structure that already reproduced its page's fields.
-export async function learnStructure(hostname: string, selectors: FieldSelectors): Promise<void> {
+// Saves (and activates) a structure that already reproduced its page's fields,
+// recording the page (origin + path) it was learned from.
+export async function learnStructure(
+  hostname: string,
+  selectors: FieldSelectors,
+  url: string,
+): Promise<void> {
   await ensureSession();
   const { error } = await getSupabaseClient().functions.invoke("site-structure", {
-    body: { action: "learn", hostname, selectors },
+    body: { action: "learn", hostname, selectors, url: pageKey(url) },
   });
   if (error) throw error;
   forgetStructure(hostname);

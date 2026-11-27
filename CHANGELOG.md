@@ -7,6 +7,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [0.1.0] - Unreleased
 
 ### Added
+- Site structures: Claude reads the cleaned HTML of the job, proposes CSS selectors,
+  and validated selectors are stored per hostname (`site_structures`, via the new
+  `site-structure` function, with the page they were learned from) so later visits
+  skip Claude. A stored structure picks the match nearest the Apply button
+  clicked, so multi-job pages return the right job. A capture log button on the
+  dashboard shows the method used for every capture.
+- Local-first data: with Cloud Sync off nothing about jobs or job profiles is sent
+  to Supabase; edits are batched and sent only with sync on. Turning sync on asks
+  which version wins when this device and the cloud differ.
+- Deleting a job removes it from the database (after an undo window).
+- Local data is kept per account: logging out goes to the welcome page and hides
+  the previous account's data (stored, not deleted) until it logs in again; app
+  pages need a display name.
+- Better extraction on messy pages: page hints (title, og:, h1), visible text
+  alongside the HTML, HTML windowed around the clicked button when over the cap,
+  and a one-time retry with a stronger model when title/company are missing.
+- Job profiles: a profile dropdown on the dashboard, a first-run role that becomes
+  the first profile, a one-profile limit on the free plan.
+- Settings as pill tabs, a Plan tab (Free / Premium £3.99), account deletion, and
+  guest → account upgrade in place at sign-up.
+- A first-run tour of the whole dashboard, including a guest-account step.
 - `src/offscreen/offscreen.html`/`offscreen.js`/`llmWorker.js` — the
   on-device model now runs in a real Worker, hosted inside a
   `chrome.offscreen` Document rather than directly in the background
@@ -31,6 +52,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   result — no field preview, since nothing's extracted at prompt time.
 
 ### Changed
+- The page snapshot taken when Apply is clicked now survives the background worker
+  being stopped (it is kept in session storage until the user answers), so a page
+  reload or redirect before answering still shows the prompt with the original
+  capture. "No" deletes it.
+- Popups are captured properly: clicking Apply/Submit in a dialog or modal captures
+  the popup and the page behind it (where the job details usually are); popups built
+  as web components (shadow DOM) are recognised and captured; `role="button"`
+  controls count as buttons.
+- When a page has nothing to read, Liber says "Couldn't find a job on this page. Try
+  applying from the job's own page." instead of asking to save, or saving an
+  "Unknown title / Unknown company" row.
+- The save prompt now appears only for apply/submit buttons (and their phrasings,
+  such as "Send application" or "Complete your application"), not for Next, Continue
+  or Review; "Apply filters", "Submit feedback" and similar are ignored.
+- The save prompt is larger, centred at the top of the page, isolated in a shadow
+  root, and replaced (fade out / fade in) on every Apply click.
+- Dashboard redesign: single corner radius token, 9-row pages with fixed
+  pagination, coloured status pills, cloud sync moved into the profile popover,
+  new icons; login/signup pages fit the window with no scrolling.
+- Email confirmation switched off in the Supabase project.
 - **The entire apply-capture flow is replaced again** — this time
   dropping automatic "has the user finished applying?" detection
   entirely, in favor of asking directly. Every prior design (incremental
@@ -46,6 +87,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   actually accepted the consent prompt. `onboarding.js`'s own unconditional
   page-load preload is unchanged (a separate, deliberate early-preload for
   first-time setup).
+
+### Fixed
+- Stored selectors on multi-job pages returned the first job instead of the one
+  applied to.
+- The password eye icon was pushed below the input's centre by a stray button
+  margin; the green "valid" outline never showed because its CSS matched
+  `data-valid="true"` while the script set an empty `data-valid`.
+- None of the Edge Functions had been deployed to the Supabase project (every call
+  was a 404); all are deployed now.
 
 ### Removed
 - `src/shared/attemptStorage.js` and `src/shared/snapshotResolution.js`

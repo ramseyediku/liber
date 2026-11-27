@@ -2,6 +2,7 @@
 // by the Stripe webhook Edge Function (service_role) — never from the
 // client, so this is read-only on purpose.
 import { ensureSession, getSupabaseClient } from "./supabaseClient.ts";
+import { accountStorage } from "./accountStore.ts";
 
 // Extra job profiles a free account may add on top of the default one every
 // account starts with ("General", or the role picked at setup). 0 = free
@@ -9,21 +10,38 @@ import { ensureSession, getSupabaseClient } from "./supabaseClient.ts";
 // server's enforce_profile_limit trigger so the UI can say no up front.
 export const FREE_EXTRA_JOB_PROFILES = 0;
 
+// Free accounts may save this many jobs, ever (the server's own lifetime
+// count, enforce_job_limit/consume_quota). Applied locally too, since with
+// Cloud Sync off nothing reaches the server to enforce it.
+export const FREE_JOB_LIMIT = 10;
+
+const PAID_CACHE_KEY = "liber_paid_cache";
+
+// Paid status is read from Supabase, and the last answer is kept so a paid
+// user who is offline isn't treated as free (local saves check it).
 export async function isPaid(): Promise<boolean> {
-  await ensureSession();
-  const supabase = getSupabaseClient();
+  const cached = async () =>
+    !!((await accountStorage.get(PAID_CACHE_KEY)) as Record<string, boolean>)[PAID_CACHE_KEY];
+  try {
+    await ensureSession();
+    const supabase = getSupabaseClient();
 
-  const { data: userData } = await supabase.auth.getUser();
-  const userId = userData?.user?.id;
-  if (!userId) return false;
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData?.user?.id;
+    if (!userId) return await cached();
 
-  const { data, error } = await supabase
-    .from("entitlements")
-    .select("paid")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error || !data) return false;
-  return !!data.paid;
+    const { data, error } = await supabase
+      .from("entitlements")
+      .select("paid")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error) return await cached();
+    const paid = !!data?.paid;
+    await accountStorage.set({ [PAID_CACHE_KEY]: paid });
+    return paid;
+  } catch {
+    return await cached();
+  }
 }
 
 const RESTORE_CODE_KEY = "liber_restore_code";
@@ -39,12 +57,12 @@ export async function startCheckout(): Promise<string> {
   }>("create-checkout-session");
   if (error) throw error;
   if (!data?.checkoutUrl) throw new Error("create-checkout-session returned no url");
-  if (data.restoreCode) await browser.storage.local.set({ [RESTORE_CODE_KEY]: data.restoreCode });
+  if (data.restoreCode) await accountStorage.set({ [RESTORE_CODE_KEY]: data.restoreCode });
   return data.checkoutUrl;
 }
 
 export async function getRestoreCode(): Promise<string | null> {
-  const result = (await browser.storage.local.get(RESTORE_CODE_KEY)) as Record<string, string>;
+  const result = (await accountStorage.get(RESTORE_CODE_KEY)) as Record<string, string>;
   return result[RESTORE_CODE_KEY] || null;
 }
 
